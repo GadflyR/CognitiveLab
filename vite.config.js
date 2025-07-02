@@ -4,6 +4,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [react()],
+  base: '/CognitiveLab/',
   resolve: {
     alias: {
       // ① any import that starts with "@/…" now maps to /src/…
