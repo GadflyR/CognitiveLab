@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    /* language & emit */
+    "target": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "jsx": "react-jsx",          // ⬅ enables <JSX/> in .tsx
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noEmit": true               // Vite/Babel handle the actual build
+  },
+  "include": ["src"],            // or whatever your source folder is
+  "exclude": ["node_modules"]
+}

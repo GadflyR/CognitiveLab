@@ -1,0 +1,54 @@
+[
+    { "word": "你好",      "pinyin": "nǐ hǎo",        "meaning": "hello" },
+    { "word": "谢谢",      "pinyin": "xièxie",        "meaning": "thank you" },
+    { "word": "再见",      "pinyin": "zàijiàn",       "meaning": "good-bye" },
+    { "word": "请",        "pinyin": "qǐng",          "meaning": "please / invite" },
+    { "word": "对不起",    "pinyin": "duì-bu-qǐ",     "meaning": "sorry" },
+    { "word": "没关系",    "pinyin": "méi guānxi",    "meaning": "it’s OK / no problem" },
+  
+    { "word": "我",        "pinyin": "wǒ",            "meaning": "I, me" },
+    { "word": "你",        "pinyin": "nǐ",            "meaning": "you (sing.)" },
+    { "word": "他",        "pinyin": "tā",            "meaning": "he, him" },
+    { "word": "她",        "pinyin": "tā",            "meaning": "she, her" },
+    { "word": "我们",      "pinyin": "wǒmen",         "meaning": "we, us" },
+    { "word": "他们",      "pinyin": "tāmen",         "meaning": "they, them" },
+  
+    { "word": "这",        "pinyin": "zhè",           "meaning": "this" },
+    { "word": "那",        "pinyin": "nà",            "meaning": "that" },
+    { "word": "哪",        "pinyin": "nǎ",            "meaning": "which" },
+    { "word": "谁",        "pinyin": "shéi",          "meaning": "who" },
+  
+    { "word": "什么",      "pinyin": "shénme",        "meaning": "what" },
+    { "word": "多少",      "pinyin": "duōshao",       "meaning": "how many / how much" },
+    { "word": "几",        "pinyin": "jǐ",            "meaning": "how many (small #)" },
+  
+    { "word": "个",        "pinyin": "gè",            "meaning": "generic measure word" },
+    { "word": "岁",        "pinyin": "suì",           "meaning": "years old" },
+    { "word": "块",        "pinyin": "kuài",          "meaning": "yuan / piece" },
+  
+    { "word": "喜欢",      "pinyin": "xǐhuan",        "meaning": "to like" },
+    { "word": "爱",        "pinyin": "ài",            "meaning": "to love" },
+    { "word": "想",        "pinyin": "xiǎng",         "meaning": "to want / to think" },
+    { "word": "知道",      "pinyin": "zhīdào",        "meaning": "to know" },
+    { "word": "认识",      "pinyin": "rènshi",        "meaning": "to recognize / to know (a person)" },
+  
+    { "word": "吃",        "pinyin": "chī",           "meaning": "to eat" },
+    { "word": "喝",        "pinyin": "hē",            "meaning": "to drink" },
+    { "word": "看",        "pinyin": "kàn",           "meaning": "to look / to watch" },
+    { "word": "听",        "pinyin": "tīng",          "meaning": "to listen" },
+    { "word": "说",        "pinyin": "shuō",          "meaning": "to speak" },
+  
+    { "word": "做",        "pinyin": "zuò",           "meaning": "to do / to make" },
+    { "word": "去",        "pinyin": "qù",            "meaning": "to go" },
+    { "word": "来",        "pinyin": "lái",           "meaning": "to come" },
+  
+    { "word": "工作",      "pinyin": "gōngzuò",       "meaning": "work / job" },
+    { "word": "学习",      "pinyin": "xuéxí",         "meaning": "to study / learning" },
+    { "word": "学校",      "pinyin": "xuéxiào",       "meaning": "school" },
+    { "word": "老师",      "pinyin": "lǎoshī",        "meaning": "teacher" },
+  
+    { "word": "今天",      "pinyin": "jīntiān",       "meaning": "today" },
+    { "word": "明天",      "pinyin": "míngtiān",      "meaning": "tomorrow" },
+    { "word": "现在",      "pinyin": "xiànzài",       "meaning": "now" }
+  ]
+  
