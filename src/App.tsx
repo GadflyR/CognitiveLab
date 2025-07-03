@@ -6,6 +6,7 @@ import { GameSettings }        from "./types";
 /* 📚 vocabulary */
 import { LessonSetup }    from "./components/vocab/LessonSetup";
 import { LessonPractice } from "./components/vocab/LessonPractice";
+import { QuizPage }       from "./components/vocab/QuizPage";
 import type { Word }      from "./data/words.cn";
 
 /* ------------------------------------------------------------------ */
@@ -16,6 +17,7 @@ type Page =
   | "nback"
   | "pvt"
   | "vocab-setup"
+  | "quiz"
   | { lessons: Word[][]; idx: number };   // idx = which lesson we’re on
 
 export default function App() {
@@ -45,6 +47,7 @@ export default function App() {
           onNBack={() => launchTask("nback")}
           onPVT={()   => launchTask("pvt")}
           onVocab={() => setPage("vocab-setup")}
+          onQuiz={()  => setPage("quiz")}
         />
       )}
 
@@ -85,6 +88,11 @@ export default function App() {
         />
       )}
 
+      {/* quiz */}
+      {page === "quiz" && (
+        <QuizPage onDone={() => setPage("menu")} />
+      )}
+
       {/* ───────── Tutorial overlay ───────── */}
       {tutorial && (
         <TutorialModal
@@ -110,7 +118,8 @@ const Menu: React.FC<{
   onNBack: () => void;
   onPVT:   () => void;
   onVocab: () => void;
-}> = ({ nStats, pvtStats, onNBack, onPVT, onVocab }) => (
+  onQuiz:  () => void;
+}> = ({ nStats, pvtStats, onNBack, onPVT, onVocab, onQuiz }) => (
   <div className="space-y-8 text-center">
     <h1 className="text-4xl font-extrabold text-indigo-700">Cognitive Lab</h1>
 
@@ -118,6 +127,7 @@ const Menu: React.FC<{
       <button onClick={onNBack} className={btn}>Play 2-Back</button>
       <button onClick={onPVT}  className={btn}>Vigilance Test</button>
       <button onClick={onVocab} className={btn}>📚 Chinese Vocab</button>
+      <button onClick={onQuiz}  className={btn}>❓ Meaning Quiz</button>
     </div>
 
     {nStats && (
