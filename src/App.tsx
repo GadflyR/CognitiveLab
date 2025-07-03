@@ -1,89 +1,91 @@
 import React, { useState } from "react";
 import { NBackGame, GameStats } from "./components/NBackGame";
-import { PVTTask, PVTStats } from "./components/PVTTask";
-import { GameSettings } from "./types";
+import { PVTTask,  PVTStats }  from "./components/PVTTask";
+import { GameSettings }        from "./types";
 
-/* 🔽  NEW imports for vocab section  */
-import lessons from "./data/";
-import { LessonSelect } from "./components/vocab/LessonSelect";
+/* 📚 vocabulary */
+import { LessonSetup }    from "./components/vocab/LessonSetup";
 import { LessonPractice } from "./components/vocab/LessonPractice";
+import type { Word }      from "./data/words.cn";
 
 /* ------------------------------------------------------------------ */
-/*  Root application: Menu → (Tutorial) → Task / Vocab                */
+/*  Pages                                                             */
 /* ------------------------------------------------------------------ */
-
-/** Additional pages:
- *  – "vocab-select"  : pick a lesson
- *  – { lessonId }    : practice that lesson
- */
 type Page =
   | "menu"
   | "nback"
   | "pvt"
-  | "vocab-select"
-  | { lessonId: string };
+  | "vocab-setup"
+  | { lessons: Word[][]; idx: number };   // idx = which lesson we’re on
 
 export default function App() {
-  const [page, setPage] = useState<Page>("menu");
+  const [page,     setPage]     = useState<Page>("menu");
   const [tutorial, setTutorial] = useState<null | "nback" | "pvt">(null);
 
-  /* 2-Back fixed config (1.5 s) */
   const nbackCfg: GameSettings = { n: 2, total: 30, paceMs: 1500, useAudio: false };
 
-  /* session stats */
   const [nStats,  setNStats]  = useState<GameStats | null>(null);
   const [pvtStats,setPvtStats]= useState<PVTStats | null>(null);
 
   /* helpers */
   const backToMenu = () => setPage("menu");
-  const launchTask = (task: "nback" | "pvt") => setTutorial(task);
-  const startTask  = (task: "nback" | "pvt") => { setTutorial(null); setPage(task); };
+  const launchTask = (t: "nback" | "pvt") => setTutorial(t);
+  const startTask  = (t: "nback" | "pvt") => { setTutorial(null); setPage(t); };
 
-  /* render */
+  /* ------------------------------------------------------------------ */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100
-                    p-8 flex flex-col items-center justify-center">
+    <div className="min-h-screen p-8 flex flex-col items-center justify-center
+                    bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100">
 
-      {/* ───── MENU ───── */}
+      {/* ───────── Menu ───────── */}
       {page === "menu" && (
         <Menu
           nStats={nStats}
           pvtStats={pvtStats}
           onNBack={() => launchTask("nback")}
           onPVT={()   => launchTask("pvt")}
-          onVocab={() => setPage("vocab-select")}
+          onVocab={() => setPage("vocab-setup")}
         />
       )}
 
-      {/* ───── 2-BACK ───── */}
+      {/* ───────── 2-Back ───────── */}
       {page === "nback" && (
         <NBackGame
           settings={nbackCfg}
-          onFinish={(s) => { setNStats(s); backToMenu(); }}
+          onFinish={s => { setNStats(s); backToMenu(); }}
         />
       )}
 
-      {/* ───── PVT ───── */}
+      {/* ───────── Vigilance ───────── */}
       {page === "pvt" && (
         <PVTTask
-          onFinish={(s) => { setPvtStats(s); backToMenu(); }}
+          onFinish={s => { setPvtStats(s); backToMenu(); }}
         />
       )}
 
-      {/* ───── VOCAB: lesson picker ───── */}
-      {page === "vocab-select" && (
-        <LessonSelect onPick={(id) => setPage({ lessonId: id })} />
+      {/* ───────── Vocab setup ───────── */}
+      {page === "vocab-setup" && (
+        <LessonSetup
+          onStart={chunks => setPage({ lessons: chunks, idx: 0 })}
+        />
       )}
 
-      {/* ───── VOCAB: practice ───── */}
-      {typeof page === "object" && "lessonId" in page && (
+      {/* ───────── Vocab practice ───────── */}
+      {typeof page === "object" && "lessons" in page && (
         <LessonPractice
-          lesson={lessons.find((l) => l.id === page.lessonId)!}
-          onExit={backToMenu}
+          words={page.lessons[page.idx]}            /* <- idx */
+          lessonNum={page.idx + 1}                  /* <- idx */
+          totalLessons={page.lessons.length}
+          onDone={() => {
+            const next = page.idx + 1;              /* <- idx */
+            next < page.lessons.length
+              ? setPage({ lessons: page.lessons, idx: next })  /* <- idx */
+              : setPage("menu");
+          }}
         />
       )}
 
-      {/* ───── TUTORIAL OVERLAY ───── */}
+      {/* ───────── Tutorial overlay ───────── */}
       {tutorial && (
         <TutorialModal
           task={tutorial}
@@ -96,11 +98,11 @@ export default function App() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Menu component                                                    */
+/*  Menu                                                              */
 /* ------------------------------------------------------------------ */
 const btn =
-  "rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white " +
-  "shadow-lg transition hover:bg-indigo-700";
+  "rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow-lg " +
+  "transition hover:bg-indigo-700";
 
 const Menu: React.FC<{
   nStats:  GameStats | null;
@@ -120,16 +122,18 @@ const Menu: React.FC<{
 
     {nStats && (
       <Summary title="2-Back result">
-        <p>Hits: {nStats.hits}</p><p>Missed: {nStats.missed}</p>
+        <p>Hits: {nStats.hits}</p>
+        <p>Missed: {nStats.missed}</p>
         <p>Attempts: {nStats.attempts}</p>
         <p>Accuracy: {(nStats.accuracy * 100).toFixed(1)}%</p>
       </Summary>
     )}
+
     {pvtStats && (
       <Summary title="PVT result">
         <p>Mean RT: {pvtStats.meanRt} ms</p>
         <p>Median RT: {pvtStats.medianRt} ms</p>
-        <p>Lapses&nbsp;&gt;500 ms: {pvtStats.lapses}</p>
+        <p>Lapses &gt;500 ms: {pvtStats.lapses}</p>
         <p>False starts: {pvtStats.falseStarts}</p>
       </Summary>
     )}
@@ -157,32 +161,40 @@ const slides: Record<
   { title: string; body: string; emoji: string }[]
 > = {
   nback: [
-    { title: "Match 2-Back", emoji: "🔠",
-      body: "A letter appears every 1.5 s.\nPress <Space> when the current letter matches the one two steps before." },
-    { title: "Scoring", emoji: "🎯",
-      body: "Hits = correct presses.\nMisses = no press on a match.\nStay focused!" },
-    { title: "Example", emoji: "👀",
-      body: "Sequence:\nA   B   A   ← press Space here" }
+    {
+      title: "Match 2-Back",
+      emoji: "🔠",
+      body: "A letter appears every 1.5 s.\nPress <Space> when the current letter matches the one two steps before."
+    },
+    {
+      title: "Scoring",
+      emoji: "🎯",
+      body: "Hits = correct presses.\nMisses = no press on a match.\nStay focused!"
+    }
   ],
   pvt: [
-    { title: "React Fast!", emoji: "🟢",
-      body: "Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can." },
-    { title: "Avoid False Starts", emoji: "⛔",
-      body: "Clicking before the circle appears resets the trial\nand counts as a false start." },
-    { title: "What We Measure", emoji: "⏱️",
-      body: "We track your reaction time (RT), lapses (>500 ms) and false starts." }
+    {
+      title: "React Fast!",
+      emoji: "🟢",
+      body: "Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can."
+    },
+    {
+      title: "Avoid False Starts",
+      emoji: "⛔",
+      body: "Pressing early resets the trial\nand counts as a false start."
+    }
   ]
 };
 
 const TutorialModal: React.FC<TutProps> = ({ task, onClose, onStart }) => {
   const [i, setI] = useState(0);
-  const frames = slides[task];
-  const last   = i === frames.length - 1;
-  const { title, body, emoji } = frames[i];
+  const f = slides[task][i];
+  const last = i === slides[task].length - 1;
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 backdrop-blur">
       <div className="relative w-full max-w-md space-y-6 rounded-3xl bg-white p-8 shadow-2xl">
+
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-xl font-bold text-gray-400 hover:text-gray-600">
@@ -190,26 +202,24 @@ const TutorialModal: React.FC<TutProps> = ({ task, onClose, onStart }) => {
         </button>
 
         <div className="text-center space-y-4">
-          <div className="text-5xl">{emoji}</div>
-          <h3 className="text-2xl font-bold text-indigo-700">{title}</h3>
-          {body.split("\n").map((line, idx) => (
-            <p key={idx} className="text-gray-700">{line}</p>
+          <div className="text-5xl">{f.emoji}</div>
+          <h3 className="text-2xl font-bold text-indigo-700">{f.title}</h3>
+          {f.body.split("\n").map((line, k) => (
+            <p key={k} className="text-gray-700">{line}</p>
           ))}
         </div>
 
         <div className="flex justify-between pt-4">
           <button
             disabled={i === 0}
-            onClick={() => setI((v) => v - 1)}
-            className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium
-                       text-gray-700 disabled:opacity-40">
+            onClick={() => setI(v => v - 1)}
+            className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40">
             Back
           </button>
-
           {last ? (
             <button onClick={onStart} className={btn}>Start</button>
           ) : (
-            <button onClick={() => setI((v) => v + 1)} className={btn}>Next</button>
+            <button onClick={() => setI(v => v + 1)} className={btn}>Next</button>
           )}
         </div>
       </div>

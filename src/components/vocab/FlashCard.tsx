@@ -1,51 +1,42 @@
 import React, { useState } from "react";
 
-interface CardProps {
-  word: { hanzi: string; pinyin: string; en: string };
-  onAnswer: (correct: boolean) => void;
+interface Word {
+  hanzi:   string;
+  pinyin:  string;
+  en:      string;
+  pos?:    string;
+  note?:   string;
+  example?: string;
 }
 
-export const FlashCard: React.FC<CardProps> = ({ word, onAnswer }) => {
-  const [revealed, setRevealed] = useState(false);
+export const FlashCard: React.FC<{ word: Word }> = ({ word }) => {
+  const [show, setShow] = useState(false);
 
   return (
-    <div className="w-72 rounded-3xl bg-white shadow-xl p-8 space-y-6 text-center">
-      <p className="text-5xl font-bold tracking-widest">{word.hanzi}</p>
+    <button
+      onClick={() => setShow((v) => !v)}
+      className="w-48 sm:w-56 rounded-3xl bg-white p-6 shadow-xl
+                 transition hover:shadow-2xl flex flex-col items-center gap-2"
+    >
+      <p className="text-4xl font-bold tracking-widest">{word.hanzi}</p>
 
-      {revealed && (
+      {show ? (
         <>
-          <p className="text-xl text-indigo-600">{word.pinyin}</p>
-          <p className="text-lg text-gray-700">{word.en}</p>
+          <p className="text-base text-indigo-600">{word.pinyin}</p>
+          <p className="text-gray-800">{word.en}</p>
+          {word.pos && <p className="text-xs text-gray-500">[{word.pos}]</p>}
+          {word.example && (
+            <p className="text-xs text-gray-600 text-left whitespace-pre-wrap">
+              {word.example}
+            </p>
+          )}
+          {word.note && (
+            <p className="text-xs text-amber-600 italic">{word.note}</p>
+          )}
         </>
-      )}
-
-      {!revealed ? (
-        <button
-          onClick={() => setRevealed(true)}
-          className="btn w-full"
-        >
-          Show meaning
-        </button>
       ) : (
-        <div className="flex gap-4">
-          <button
-            onClick={() => onAnswer(false)}
-            className="btn w-1/2 bg-rose-500 hover:bg-rose-600"
-          >
-            ❌ Oops
-          </button>
-          <button
-            onClick={() => onAnswer(true)}
-            className="btn w-1/2 bg-lime-500 hover:bg-lime-600"
-          >
-            ✅ Got it
-          </button>
-        </div>
+        <p className="mt-4 text-xs text-gray-400">tap to reveal</p>
       )}
-    </div>
+    </button>
   );
 };
-
-/* Tailwind shortcut; or import from your existing helpers */
-const btn =
-  "rounded-xl py-2 font-semibold text-white transition shadow hover:shadow-lg";
