@@ -2,19 +2,19 @@ import React, { useState } from "react";
 import { FlashCard } from "./FlashCard";
 import type { Word } from "../../data/words.cn";
 
-const PER_PAGE = 10;
-
 export const LessonPractice: React.FC<{
   words: Word[];
-  lessonNum: number;      // 1-based index in the current course
+  lessonNum: number;
   totalLessons: number;
+  perPage?: number;           // NEW
   onDone: () => void;
-}> = ({ words, lessonNum, totalLessons, onDone }) => {
+}> = ({ words, lessonNum, totalLessons, perPage = 6, onDone }) => {
   const [page, setPage] = useState(0);
-  const totalPages      = Math.ceil(words.length / PER_PAGE);
-  const slice           = words.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  const totalPages      = Math.ceil(words.length / perPage);
+  const slice           = words.slice(page * perPage, (page + 1) * perPage);
 
-  const next = () => { page + 1 < totalPages ? setPage(p => p + 1) : onDone(); };
+  const next = () =>
+    page + 1 < totalPages ? setPage(p => p + 1) : onDone();
 
   return (
     <div className="flex flex-col items-center gap-8">
@@ -28,7 +28,7 @@ export const LessonPractice: React.FC<{
 
       <button
         onClick={next}
-        className="rounded-full bg-indigo-600 px-8 py-3 text-white font-semibold shadow hover:bg-indigo-700">
+        className="rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow hover:bg-indigo-700">
         {page + 1 < totalPages ? "Next page" : "Finish lesson"}
       </button>
 

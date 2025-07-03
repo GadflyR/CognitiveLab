@@ -3,142 +3,185 @@ import { NBackGame, GameStats } from "./components/NBackGame";
 import { PVTTask,  PVTStats }  from "./components/PVTTask";
 import { GameSettings }        from "./types";
 
-/* 📚 vocabulary */
 import { LessonSetup }    from "./components/vocab/LessonSetup";
 import { LessonPractice } from "./components/vocab/LessonPractice";
 import { QuizPage }       from "./components/vocab/QuizPage";
-import type { Word }      from "./data/words.cn";
+import allWords, { Word } from "./data/words.cn";
 
-/* ------------------------------------------------------------------ */
-/*  Pages                                                             */
-/* ------------------------------------------------------------------ */
+/* ─── helpers ─── */
+const shuffle = <T,>(arr: ReadonlyArray<T>): T[] => {
+  const a = [...arr] as T[];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+/* ─── route types ─── */
+type VocabFlow = { lessons: Word[][]; idx: number };
+type FullFlow  = {
+  fullStage: number;   // 0-3
+  lessons: Word[][];   // shuffled chunks
+  idx: number;         // which lesson
+  perPage: number;     // adaptive page size
+  nAcc?: number;       // interim stats
+  pvtMean?: number;
+};
+
 type Page =
-  | "menu"
-  | "nback"
-  | "pvt"
-  | "vocab-setup"
-  | "quiz"
-  | { lessons: Word[][]; idx: number };   // idx = which lesson we’re on
+  | "menu" | "nback" | "pvt" | "vocab-setup" | "quiz"
+  | VocabFlow
+  | FullFlow;
 
+/* ─── constants ─── */
+const NBACK_CFG: GameSettings = { n: 2, total: 30, paceMs: 1500, useAudio: false };
+const WORDS_PER_LESSON = 12;
+
+/* -------------------------------------------------------------------------- */
 export default function App() {
-  const [page,     setPage]     = useState<Page>("menu");
-  const [tutorial, setTutorial] = useState<null | "nback" | "pvt">(null);
-
-  const nbackCfg: GameSettings = { n: 2, total: 30, paceMs: 1500, useAudio: false };
+  const [page, setPage]       = useState<Page>("menu");
+  const [overlay, setOverlay] = useState<null | "nback" | "pvt">(null);
 
   const [nStats,  setNStats]  = useState<GameStats | null>(null);
   const [pvtStats,setPvtStats]= useState<PVTStats | null>(null);
 
-  /* helpers */
-  const backToMenu = () => setPage("menu");
-  const launchTask = (t: "nback" | "pvt") => setTutorial(t);
-  const startTask  = (t: "nback" | "pvt") => { setTutorial(null); setPage(t); };
+  /* ─── full-test bootstrap ─── */
+  const startFull = () => {
+    const chunks: Word[][] = [];
+    const shuffled = shuffle(allWords);
+    for (let i = 0; i < shuffled.length; i += WORDS_PER_LESSON) {
+      chunks.push(shuffled.slice(i, i + WORDS_PER_LESSON));
+    }
+    setPage({ fullStage: 0, lessons: chunks, idx: 0, perPage: 6 });
+  };
 
-  /* ------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
   return (
     <div className="min-h-screen p-8 flex flex-col items-center justify-center
                     bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100">
 
-      {/* ───────── Menu ───────── */}
+      {/* MENU */}
       {page === "menu" && (
         <Menu
-          nStats={nStats}
-          pvtStats={pvtStats}
-          onNBack={() => launchTask("nback")}
-          onPVT={()   => launchTask("pvt")}
+          nStats={nStats} pvtStats={pvtStats}
+          onNBack={() => setOverlay("nback")}
+          onPVT={()   => setOverlay("pvt")}
           onVocab={() => setPage("vocab-setup")}
           onQuiz={()  => setPage("quiz")}
+          onFull={startFull}
         />
       )}
 
-      {/* ───────── 2-Back ───────── */}
+      {/* single tasks …  (unchanged) */}
       {page === "nback" && (
-        <NBackGame
-          settings={nbackCfg}
-          onFinish={s => { setNStats(s); backToMenu(); }}
-        />
+        <NBackGame settings={NBACK_CFG}
+          onFinish={s=>{setNStats(s);setPage("menu");}}/>
       )}
-
-      {/* ───────── Vigilance ───────── */}
       {page === "pvt" && (
-        <PVTTask
-          onFinish={s => { setPvtStats(s); backToMenu(); }}
-        />
+        <PVTTask onFinish={s=>{setPvtStats(s);setPage("menu");}}/>
       )}
-
-      {/* ───────── Vocab setup ───────── */}
       {page === "vocab-setup" && (
-        <LessonSetup
-          onStart={chunks => setPage({ lessons: chunks, idx: 0 })}
-        />
+        <LessonSetup onStart={chunks=>setPage({ lessons:chunks, idx:0 })}/>
       )}
-
-      {/* ───────── Vocab practice ───────── */}
-      {typeof page === "object" && "lessons" in page && (
+      {typeof page==="object" && "lessons" in page && "idx" in page && !("fullStage" in page) && (
         <LessonPractice
-          words={page.lessons[page.idx]}            /* <- idx */
-          lessonNum={page.idx + 1}                  /* <- idx */
+          words={page.lessons[page.idx]}
+          lessonNum={page.idx+1}
           totalLessons={page.lessons.length}
-          onDone={() => {
-            const next = page.idx + 1;              /* <- idx */
-            next < page.lessons.length
-              ? setPage({ lessons: page.lessons, idx: next })  /* <- idx */
+          onDone={()=>{
+            const next=page.idx+1;
+            next<page.lessons.length
+              ? setPage({lessons:page.lessons,idx:next})
               : setPage("menu");
-          }}
-        />
+          }}/>
       )}
+      {page === "quiz" && <QuizPage onDone={()=>setPage("menu")}/>}
 
-      {/* quiz */}
-      {page === "quiz" && (
-        <QuizPage onDone={() => setPage("menu")} />
-      )}
+      {/* ─── Full Test router ─── */}
+      {typeof page==="object" && "fullStage" in page && (() => {
+        switch (page.fullStage) {
+          /* 2-Back */
+          case 0:
+            return (
+              <NBackGame
+                settings={NBACK_CFG}
+                onFinish={s=>setPage({...page, fullStage:1, nAcc: s.accuracy})}/>
+            );
+          /* PVT */
+          case 1:
+            return (
+              <PVTTask
+                onFinish={s=>{
+                  /* score: avg of n-back accuracy & RT score */
+                  const nScore = (page.nAcc ?? 0) * 100;
+                  const rtScore = Math.max(0, Math.min(100, 100 - (s.meanRt - 200) / 4));
+                  const cog = (nScore + rtScore) / 2;
+                  const per = cog < 50 ? 4 : cog < 80 ? 6 : 8;
+                  setPage({...page, fullStage:2, pvtMean:s.meanRt, perPage:per});
+                }}/>
+            );
+          /* Flash-cards (adaptive perPage) */
+          case 2:
+            return (
+              <LessonPractice
+                words={page.lessons[page.idx]}
+                lessonNum={page.idx+1}
+                totalLessons={page.lessons.length}
+                perPage={page.perPage}            /* adaptive */
+                onDone={()=>{
+                  const next=page.idx+1;
+                  next<page.lessons.length
+                    ? setPage({...page, idx:next})
+                    : setPage({...page, fullStage:3});
+                }}/>
+            );
+          /* Meaning quiz */
+          case 3:
+            return <QuizPage onDone={()=>setPage("menu")}/>;
+          default:
+            return null;
+        }
+      })()}
 
-      {/* ───────── Tutorial overlay ───────── */}
-      {tutorial && (
+      {/* Tutorial Overlay */}
+      {overlay && (
         <TutorialModal
-          task={tutorial}
-          onClose={() => setTutorial(null)}
-          onStart={() => startTask(tutorial)}
+          task={overlay}
+          onClose={()=>setOverlay(null)}
+          onStart={()=>{setOverlay(null);setPage(overlay);}}
         />
       )}
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Menu                                                              */
-/* ------------------------------------------------------------------ */
+/* ---------------- Menu ---------------- */
 const btn =
-  "rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow-lg " +
-  "transition hover:bg-indigo-700";
+  "rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow transition hover:bg-indigo-700";
 
 const Menu: React.FC<{
-  nStats:  GameStats | null;
-  pvtStats: PVTStats | null;
-  onNBack: () => void;
-  onPVT:   () => void;
-  onVocab: () => void;
-  onQuiz:  () => void;
-}> = ({ nStats, pvtStats, onNBack, onPVT, onVocab, onQuiz }) => (
+  nStats: GameStats | null; pvtStats: PVTStats | null;
+  onNBack: () => void; onPVT: () => void;
+  onVocab: () => void; onQuiz: () => void; onFull: () => void;
+}> = ({ nStats, pvtStats, onNBack, onPVT, onVocab, onQuiz, onFull }) => (
   <div className="space-y-8 text-center">
     <h1 className="text-4xl font-extrabold text-indigo-700">Cognitive Lab</h1>
-
     <div className="flex flex-col gap-4 max-w-xs mx-auto">
       <button onClick={onNBack} className={btn}>Play 2-Back</button>
       <button onClick={onPVT}  className={btn}>Vigilance Test</button>
       <button onClick={onVocab} className={btn}>📚 Chinese Vocab</button>
       <button onClick={onQuiz}  className={btn}>❓ Meaning Quiz</button>
+      <button onClick={onFull}  className={btn}>🧩 Full Test</button>
     </div>
 
     {nStats && (
       <Summary title="2-Back result">
-        <p>Hits: {nStats.hits}</p>
-        <p>Missed: {nStats.missed}</p>
+        <p>Hits: {nStats.hits}</p><p>Missed: {nStats.missed}</p>
         <p>Attempts: {nStats.attempts}</p>
-        <p>Accuracy: {(nStats.accuracy * 100).toFixed(1)}%</p>
+        <p>Accuracy: {(nStats.accuracy*100).toFixed(1)}%</p>
       </Summary>
     )}
-
     {pvtStats && (
       <Summary title="PVT result">
         <p>Mean RT: {pvtStats.meanRt} ms</p>
@@ -150,10 +193,10 @@ const Menu: React.FC<{
   </div>
 );
 
-const Summary: React.FC<React.PropsWithChildren<{ title: string }>> = ({ title, children }) => (
-  <div className="mx-auto w-full max-w-xs space-y-2 rounded-2xl bg-white/60 p-4 shadow">
+const Summary: React.FC<React.PropsWithChildren<{title:string}>> = ({title, children}) => (
+  <div className="mx-auto max-w-xs rounded-2xl bg-white/60 p-4 shadow space-y-1">
     <h2 className="text-lg font-bold text-indigo-700">{title}</h2>
-    <div className="space-y-1 text-sm text-gray-700">{children}</div>
+    <div className="text-sm text-gray-700 space-y-1">{children}</div>
   </div>
 );
 
