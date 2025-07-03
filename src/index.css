@@ -5,7 +5,8 @@
 @tailwind utilities;
 
 @layer components {
-  .glass-card {
-    @apply rounded-3xl bg-white/60 backdrop-blur-lg p-8 shadow-2xl;
+  .btn {
+    @apply rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white
+            transition shadow hover:bg-indigo-700 hover:shadow-lg;
   }
 }
