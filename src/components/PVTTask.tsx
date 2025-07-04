@@ -15,6 +15,7 @@ export interface PVTStats {
   medianRt: number; // ms
   lapses: number;   // RT > 500 ms
   falseStarts: number;
+  rts: number[];
 }
 
 interface Props {
@@ -104,6 +105,7 @@ export const PVTTask: React.FC<Props> = ({ onFinish, totalTrials = 20 }) => {
       medianRt: Math.round(median),
       lapses,
       falseStarts,
+      rts
     });
   };
 

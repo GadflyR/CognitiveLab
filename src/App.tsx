@@ -1,44 +1,47 @@
 import React, { useState } from "react";
 import { NBackGame, GameStats } from "./components/NBackGame";
-import { PVTTask,  PVTStats }  from "./components/PVTTask";
-import { GameSettings }        from "./types";
+import { PVTTask,  PVTStats }   from "./components/PVTTask";
+import { GameSettings }         from "./types";
 
 import { LessonSetup }    from "./components/vocab/LessonSetup";
 import { LessonPractice } from "./components/vocab/LessonPractice";
 import { QuizPage }       from "./components/vocab/QuizPage";
+import { SlideShowTask }  from "./components/attention/SlideShowTask";
 import allWords, { Word } from "./data/words.cn";
 
-/* ─── helpers ─── */
+/* ---------- helper ---------- */
 const shuffle = <T,>(arr: ReadonlyArray<T>): T[] => {
-  const a = [...arr] as T[];
-  for (let i = a.length - 1; i > 0; i--) {
+  const copy = [...arr] as T[];
+  for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return a;
+  return copy;
 };
 
-/* ─── route types ─── */
+/* ---------- routes ---------- */
 type VocabFlow = { lessons: Word[][]; idx: number };
-type FullFlow  = {
-  fullStage: number;   // 0-3
-  lessons: Word[][];   // shuffled chunks
-  idx: number;         // which lesson
-  perPage: number;     // adaptive page size
-  nAcc?: number;       // interim stats
-  pvtMean?: number;
+
+type FullFlow = {
+  fullStage: number;         // 0–6 (see switch)
+  lessons: Word[][];
+  idx: number;               // which lesson
+  nScore?: number;           // 0-100  (2-Back)
+  vScore?: number;           // 0-100  (Vigilance)
+  sScore?: number;           // 0-100  (Slides)
+  perPage?: number;          // adaptive cards/page
 };
 
 type Page =
-  | "menu" | "nback" | "pvt" | "vocab-setup" | "quiz"
+  | "menu" | "nback" | "pvt" | "slideshow" | "vocab-setup" | "quiz"
   | VocabFlow
   | FullFlow;
 
-/* ─── constants ─── */
+/* ---------- constants ---------- */
 const NBACK_CFG: GameSettings = { n: 2, total: 30, paceMs: 1500, useAudio: false };
 const WORDS_PER_LESSON = 12;
 
-/* -------------------------------------------------------------------------- */
+/* ==================================================================== */
 export default function App() {
   const [page, setPage]       = useState<Page>("menu");
   const [overlay, setOverlay] = useState<null | "nback" | "pvt">(null);
@@ -46,40 +49,44 @@ export default function App() {
   const [nStats,  setNStats]  = useState<GameStats | null>(null);
   const [pvtStats,setPvtStats]= useState<PVTStats | null>(null);
 
-  /* ─── full-test bootstrap ─── */
+  /* ---------- full-test entry ---------- */
   const startFull = () => {
     const chunks: Word[][] = [];
     const shuffled = shuffle(allWords);
-    for (let i = 0; i < shuffled.length; i += WORDS_PER_LESSON) {
+    for (let i = 0; i < shuffled.length; i += WORDS_PER_LESSON)
       chunks.push(shuffled.slice(i, i + WORDS_PER_LESSON));
-    }
-    setPage({ fullStage: 0, lessons: chunks, idx: 0, perPage: 6 });
+
+    setPage({ fullStage: 0, lessons: chunks, idx: 0 });
   };
 
-  /* ---------------------------------------------------------------------- */
+  /* ===================== render router ===================== */
   return (
     <div className="min-h-screen p-8 flex flex-col items-center justify-center
                     bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100">
 
-      {/* MENU */}
+      {/* MENU ------------------------------------------------ */}
       {page === "menu" && (
         <Menu
-          nStats={nStats} pvtStats={pvtStats}
+          nStats={nStats}  pvtStats={pvtStats}
           onNBack={() => setOverlay("nback")}
           onPVT={()   => setOverlay("pvt")}
-          onVocab={() => setPage("vocab-setup")}
+          onSlide={()=> setPage("slideshow")}
+          onVocab={()=> setPage("vocab-setup")}
           onQuiz={()  => setPage("quiz")}
           onFull={startFull}
         />
       )}
 
-      {/* single tasks …  (unchanged) */}
+      {/* stand-alone tasks ---------------------------------- */}
       {page === "nback" && (
         <NBackGame settings={NBACK_CFG}
-          onFinish={s=>{setNStats(s);setPage("menu");}}/>
+          onFinish={s=>{ setNStats(s); setPage("menu"); }}/>
       )}
       {page === "pvt" && (
-        <PVTTask onFinish={s=>{setPvtStats(s);setPage("menu");}}/>
+        <PVTTask onFinish={s=>{ setPvtStats(s); setPage("menu"); }}/>
+      )}
+      {page === "slideshow" && (
+        <SlideShowTask onFinish={()=>setPage("menu")}/>
       )}
       {page === "vocab-setup" && (
         <LessonSetup onStart={chunks=>setPage({ lessons:chunks, idx:0 })}/>
@@ -89,68 +96,93 @@ export default function App() {
           words={page.lessons[page.idx]}
           lessonNum={page.idx+1}
           totalLessons={page.lessons.length}
-          onDone={()=>{
-            const next=page.idx+1;
-            next<page.lessons.length
-              ? setPage({lessons:page.lessons,idx:next})
+          onDone={()=> {
+            const next = page.idx + 1;
+            next < page.lessons.length
+              ? setPage({ lessons:page.lessons, idx:next })
               : setPage("menu");
           }}/>
       )}
       {page === "quiz" && <QuizPage onDone={()=>setPage("menu")}/>}
 
-      {/* ─── Full Test router ─── */}
+      {/* FULL TEST SEQUENCE --------------------------------- */}
       {typeof page==="object" && "fullStage" in page && (() => {
         switch (page.fullStage) {
-          /* 2-Back */
+          /* 0: n-Back tutorial */
           case 0:
-            return (
-              <NBackGame
-                settings={NBACK_CFG}
-                onFinish={s=>setPage({...page, fullStage:1, nAcc: s.accuracy})}/>
-            );
-          /* PVT */
-          case 1:
-            return (
-              <PVTTask
-                onFinish={s=>{
-                  /* score: avg of n-back accuracy & RT score */
-                  const nScore = (page.nAcc ?? 0) * 100;
-                  const rtScore = Math.max(0, Math.min(100, 100 - (s.meanRt - 200) / 4));
-                  const cog = (nScore + rtScore) / 2;
-                  const per = cog < 50 ? 4 : cog < 80 ? 6 : 8;
-                  setPage({...page, fullStage:2, pvtMean:s.meanRt, perPage:per});
-                }}/>
-            );
-          /* Flash-cards (adaptive perPage) */
+            return <TutorialModal task="nback"
+                     onClose={()=>setPage("menu")}
+                     onStart={()=>setPage({ ...page, fullStage:1 })}/>;
+
+          /* 1: n-Back game */
+          case 1: {
+            return <NBackGame settings={NBACK_CFG}
+                     onFinish={s=>{
+                       const nScore = s.accuracy * 100;
+                       setPage({ ...page, fullStage:2, nScore });
+                     }}/>;
+          }
+
+          /* 2: Vigilance tutorial */
           case 2:
-            return (
-              <LessonPractice
-                words={page.lessons[page.idx]}
-                lessonNum={page.idx+1}
-                totalLessons={page.lessons.length}
-                perPage={page.perPage}            /* adaptive */
-                onDone={()=>{
-                  const next=page.idx+1;
-                  next<page.lessons.length
-                    ? setPage({...page, idx:next})
-                    : setPage({...page, fullStage:3});
-                }}/>
-            );
-          /* Meaning quiz */
+            return <TutorialModal task="pvt"
+                     onClose={()=>setPage("menu")}
+                     onStart={()=>setPage({ ...page, fullStage:3 })}/>;
+
+          /* 3: Vigilance game (consistency) */
           case 3:
+            return <PVTTask
+                     onFinish={(s:PVTStats)=>{
+                       const mid  = Math.floor(s.rts.length/2);
+                       const avg  = (a:number[])=>a.reduce((t,v)=>t+v,0)/a.length;
+                       const delta= avg(s.rts.slice(mid)) - avg(s.rts.slice(0,mid));
+                       const vScore = Math.max(0, Math.min(100, 100 - delta/4));
+                       setPage({ ...page, fullStage:4, vScore });
+                     }}/>;
+
+          /* 4: Slide show attention */
+          case 4:
+            return <SlideShowTask
+                     onFinish={s=>{
+                       const { nScore=0, vScore=0 } = page;
+                       const sScore = s.score;
+                       /* overall cognitive score */
+                       const overall = (nScore + vScore + sScore) / 3;
+                       const perPage =
+                         overall < 40 ? 4 :
+                         overall < 70 ? 6 :
+                         overall < 90 ? 8 : 10;
+                       setPage({ ...page, fullStage:5, sScore, perPage });
+                     }}/>;
+
+          /* 5: adaptive flash-cards */
+          case 5:
+            return <LessonPractice
+                     words={page.lessons[page.idx]}
+                     lessonNum={page.idx+1}
+                     totalLessons={page.lessons.length}
+                     perPage={page.perPage}
+                     onDone={()=>{
+                       const next = page.idx + 1;
+                       next < page.lessons.length
+                         ? setPage({ ...page, idx:next })
+                         : setPage({ ...page, fullStage:6 });
+                     }}/>;
+
+          /* 6: meaning quiz then finish */
+          case 6:
             return <QuizPage onDone={()=>setPage("menu")}/>;
+
           default:
             return null;
         }
       })()}
 
-      {/* Tutorial Overlay */}
+      {/* stand-alone tutorial overlay ----------------------- */}
       {overlay && (
-        <TutorialModal
-          task={overlay}
+        <TutorialModal task={overlay}
           onClose={()=>setOverlay(null)}
-          onStart={()=>{setOverlay(null);setPage(overlay);}}
-        />
+          onStart={()=>{ setOverlay(null); setPage(overlay); }}/>
       )}
     </div>
   );
@@ -162,14 +194,15 @@ const btn =
 
 const Menu: React.FC<{
   nStats: GameStats | null; pvtStats: PVTStats | null;
-  onNBack: () => void; onPVT: () => void;
+  onNBack: () => void; onPVT: () => void; onSlide: () => void;
   onVocab: () => void; onQuiz: () => void; onFull: () => void;
-}> = ({ nStats, pvtStats, onNBack, onPVT, onVocab, onQuiz, onFull }) => (
+}> = ({ nStats, pvtStats, onNBack, onPVT, onSlide, onVocab, onQuiz, onFull }) => (
   <div className="space-y-8 text-center">
     <h1 className="text-4xl font-extrabold text-indigo-700">Cognitive Lab</h1>
     <div className="flex flex-col gap-4 max-w-xs mx-auto">
       <button onClick={onNBack} className={btn}>Play 2-Back</button>
       <button onClick={onPVT}  className={btn}>Vigilance Test</button>
+      <button onClick={onSlide} className={btn}>🖼️ Slide Attention</button>
       <button onClick={onVocab} className={btn}>📚 Chinese Vocab</button>
       <button onClick={onQuiz}  className={btn}>❓ Meaning Quiz</button>
       <button onClick={onFull}  className={btn}>🧩 Full Test</button>
