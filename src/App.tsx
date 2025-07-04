@@ -203,7 +203,7 @@ const Menu: React.FC<{
       <button onClick={onNBack} className={btn}>Play 2-Back</button>
       <button onClick={onPVT}  className={btn}>Vigilance Test</button>
       <button onClick={onSlide} className={btn}>🖼️ Slide Attention</button>
-      <button onClick={onVocab} className={btn}>📚 Chinese Vocab</button>
+      <button onClick={onVocab} className={btn}>📚 Toki Pona Vocab</button>
       <button onClick={onQuiz}  className={btn}>❓ Meaning Quiz</button>
       <button onClick={onFull}  className={btn}>🧩 Full Test</button>
     </div>
