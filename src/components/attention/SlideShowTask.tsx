@@ -22,9 +22,12 @@ export interface SlideStats {
 export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({ onFinish }) => {
   const [idx,  setIdx]  = useState(0);
   const [done, setDone] = useState<SlideStats | null>(null);
+  const [showTutorial, setShowTutorial] = useState(true);
 
   const startRef = useRef(performance.now());
   const timesRef = useRef<number[]>([]);
+
+  const MIN_TIME_THRESHOLD = 1000; // 1 second
 
   /* -------- next / finish -------- */
   const next = () => {
@@ -50,10 +53,40 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({
         : mean <= 1000 ? 0.2               // ≤1 s keeps only 20 % of score
         : 0.2 + 0.8 * ((mean - 1000) / 1000);  // linear 1-2 s
 
-      const score = Math.round(consist * factor);
+      // New: Apply penalty if any slide is read too quickly
+      const penalty = t.some(time => time < MIN_TIME_THRESHOLD) ? 0.5 : 1;
+
+      const score = Math.round(consist * factor * penalty); // Apply penalty if any slide is rushed
       setDone({ times: t, score });
     }
   };
+
+  /* -------- Tutorial overlay -------- */
+  const TutorialModal = () => (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 backdrop-blur">
+      <div className="relative w-full max-w-md space-y-6 rounded-3xl bg-white p-8 shadow-2xl">
+        <button
+          onClick={() => setShowTutorial(false)}
+          className="absolute right-4 top-4 text-xl font-bold text-gray-400 hover:text-gray-600">
+          ×
+        </button>
+
+        <div className="text-center space-y-4">
+          <div className="text-5xl">🖼️</div>
+          <h3 className="text-2xl font-bold text-indigo-700">Attention Test</h3>
+          <p className="text-gray-700">In this task, you will read a series of slides. Focus on each slide and try to maintain your attention throughout the task.</p>
+        </div>
+
+        <div className="flex justify-between pt-4">
+          <button
+            onClick={() => setShowTutorial(false)}
+            className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700">
+            Start
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   /* -------- render -------- */
   if (done) {
@@ -95,6 +128,9 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({
       <p className="text-sm text-gray-500">
         Slide {idx + 1} / {SLIDES.length}
       </p>
+
+      {/* Show tutorial if user hasn't started the task yet */}
+      {showTutorial && <TutorialModal />}
     </div>
   );
 };

@@ -9,27 +9,26 @@ import { QuizPage }       from "./components/vocab/QuizPage";
 import { SlideShowTask }  from "./components/attention/SlideShowTask";
 import allWords, { Word } from "./data/words.cn";
 
-/* ---------- helper ---------- */
+/* ------------ helpers ------------ */
 const shuffle = <T,>(arr: ReadonlyArray<T>): T[] => {
-  const copy = [...arr] as T[];
-  for (let i = copy.length - 1; i > 0; i--) {
+  const out = [...arr] as T[];
+  for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+    [out[i], out[j]] = [out[j], out[i]];
   }
-  return copy;
+  return out;
 };
 
-/* ---------- routes ---------- */
+/* ------------ routing types ------------ */
 type VocabFlow = { lessons: Word[][]; idx: number };
 
-type FullFlow = {
-  fullStage: number;         // 0–6 (see switch)
+type FullFlow  = {
+  fullStage: number;           // see switch
   lessons: Word[][];
-  idx: number;               // which lesson
-  nScore?: number;           // 0-100  (2-Back)
-  vScore?: number;           // 0-100  (Vigilance)
-  sScore?: number;           // 0-100  (Slides)
-  perPage?: number;          // adaptive cards/page
+  idx: number;
+  nScore?: number;
+  vScore?: number;
+  sScore?: number;
 };
 
 type Page =
@@ -37,11 +36,11 @@ type Page =
   | VocabFlow
   | FullFlow;
 
-/* ---------- constants ---------- */
+/* ------------ constants ------------ */
 const NBACK_CFG: GameSettings = { n: 2, total: 30, paceMs: 1500, useAudio: false };
 const WORDS_PER_LESSON = 12;
 
-/* ==================================================================== */
+/* =================================================================== */
 export default function App() {
   const [page, setPage]       = useState<Page>("menu");
   const [overlay, setOverlay] = useState<null | "nback" | "pvt">(null);
@@ -49,119 +48,108 @@ export default function App() {
   const [nStats,  setNStats]  = useState<GameStats | null>(null);
   const [pvtStats,setPvtStats]= useState<PVTStats | null>(null);
 
-  /* ---------- full-test entry ---------- */
+  /* ---------- Full-test bootstrap ---------- */
   const startFull = () => {
-    const chunks: Word[][] = [];
-    const shuffled = shuffle(allWords);
-    for (let i = 0; i < shuffled.length; i += WORDS_PER_LESSON)
-      chunks.push(shuffled.slice(i, i + WORDS_PER_LESSON));
-
-    setPage({ fullStage: 0, lessons: chunks, idx: 0 });
+    const arr = shuffle(allWords);
+    const lessons: Word[][] = [];
+    for (let i = 0; i < arr.length; i += WORDS_PER_LESSON)
+      lessons.push(arr.slice(i, i + WORDS_PER_LESSON));
+    setPage({ fullStage: 0, lessons, idx: 0 });
   };
 
-  /* ===================== render router ===================== */
+  /* ================= router ================= */
   return (
     <div className="min-h-screen p-8 flex flex-col items-center justify-center
                     bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100">
 
-      {/* MENU ------------------------------------------------ */}
+      {/* -------- MENU -------- */}
       {page === "menu" && (
         <Menu
-          nStats={nStats}  pvtStats={pvtStats}
-          onNBack={() => setOverlay("nback")}
-          onPVT={()   => setOverlay("pvt")}
-          onSlide={()=> setPage("slideshow")}
-          onVocab={()=> setPage("vocab-setup")}
-          onQuiz={()  => setPage("quiz")}
+          nStats={nStats} pvtStats={pvtStats}
+          onNBack={()=>setOverlay("nback")}
+          onPVT={()=>setOverlay("pvt")}
+          onSlide={()=>setPage("slideshow")}
+          onVocab={()=>setPage("vocab-setup")}
+          onQuiz={()=>setPage("quiz")}
           onFull={startFull}
         />
       )}
 
-      {/* stand-alone tasks ---------------------------------- */}
+      {/* -------- stand-alone tasks -------- */}
       {page === "nback" && (
         <NBackGame settings={NBACK_CFG}
           onFinish={s=>{ setNStats(s); setPage("menu"); }}/>
       )}
+
       {page === "pvt" && (
         <PVTTask onFinish={s=>{ setPvtStats(s); setPage("menu"); }}/>
       )}
+
       {page === "slideshow" && (
         <SlideShowTask onFinish={()=>setPage("menu")}/>
       )}
+
       {page === "vocab-setup" && (
-        <LessonSetup onStart={chunks=>setPage({ lessons:chunks, idx:0 })}/>
+        <LessonSetup onStart={(chunks: Word[][])=>setPage({ lessons:chunks, idx:0 })}/>
       )}
-      {typeof page==="object" && "lessons" in page && "idx" in page && !("fullStage" in page) && (
+
+      {typeof page === "object" && "lessons" in page && "idx" in page && !("fullStage" in page) && (
         <LessonPractice
           words={page.lessons[page.idx]}
-          lessonNum={page.idx+1}
+          lessonNum={page.idx + 1}
           totalLessons={page.lessons.length}
-          onDone={()=> {
+          onDone={()=>{
             const next = page.idx + 1;
             next < page.lessons.length
               ? setPage({ lessons:page.lessons, idx:next })
               : setPage("menu");
           }}/>
       )}
+
       {page === "quiz" && <QuizPage onDone={()=>setPage("menu")}/>}
 
-      {/* FULL TEST SEQUENCE --------------------------------- */}
-      {typeof page==="object" && "fullStage" in page && (() => {
+      {/* -------- FULL TEST FLOW -------- */}
+      {typeof page === "object" && "fullStage" in page && (() => {
         switch (page.fullStage) {
-          /* 0: n-Back tutorial */
-          case 0:
+          case 0:                       /* n-Back tutorial */
             return <TutorialModal task="nback"
                      onClose={()=>setPage("menu")}
-                     onStart={()=>setPage({ ...page, fullStage:1 })}/>;
+                     onStart={()=>setPage({ ...page, fullStage:1 })} />;
 
-          /* 1: n-Back game */
-          case 1: {
+          case 1:                       /* n-Back game */
             return <NBackGame settings={NBACK_CFG}
                      onFinish={s=>{
                        const nScore = s.accuracy * 100;
                        setPage({ ...page, fullStage:2, nScore });
                      }}/>;
-          }
 
-          /* 2: Vigilance tutorial */
-          case 2:
+          case 2:                       /* PVT tutorial */
             return <TutorialModal task="pvt"
                      onClose={()=>setPage("menu")}
-                     onStart={()=>setPage({ ...page, fullStage:3 })}/>;
+                     onStart={()=>setPage({ ...page, fullStage:3 })} />;
 
-          /* 3: Vigilance game (consistency) */
-          case 3:
-            return <PVTTask
-                     onFinish={(s:PVTStats)=>{
-                       const mid  = Math.floor(s.rts.length/2);
-                       const avg  = (a:number[])=>a.reduce((t,v)=>t+v,0)/a.length;
-                       const delta= avg(s.rts.slice(mid)) - avg(s.rts.slice(0,mid));
-                       const vScore = Math.max(0, Math.min(100, 100 - delta/4));
-                       setPage({ ...page, fullStage:4, vScore });
-                     }}/>;
+          case 3:                       /* PVT game */
+            return <PVTTask onFinish={(s:PVTStats)=>{
+                     const mid  = Math.floor(s.rts.length/2);
+                     const avg  = (a:number[])=>a.reduce((t,v)=>t+v,0)/a.length;
+                     const delta= avg(s.rts.slice(mid)) - avg(s.rts.slice(0,mid));
+                     const vScore = Math.max(0, Math.min(100, 100 - delta/4));
+                     setPage({ ...page, fullStage:4, vScore });
+                   }}/>;
 
-          /* 4: Slide show attention */
-          case 4:
-            return <SlideShowTask
-                     onFinish={s=>{
-                       const { nScore=0, vScore=0 } = page;
-                       const sScore = s.score;
-                       /* overall cognitive score */
-                       const overall = (nScore + vScore + sScore) / 3;
-                       const perPage =
-                         overall < 40 ? 4 :
-                         overall < 70 ? 6 :
-                         overall < 90 ? 8 : 10;
-                       setPage({ ...page, fullStage:5, sScore, perPage });
-                     }}/>;
+          case 4:                       /* Slide-show task */
+            return <SlideShowTask onFinish={s=>{
+                     const overall =
+                       ((page.nScore ?? 0) + (page.vScore ?? 0) + s.score) / 3;
+                     /* you could adapt WORDS_PER_LESSON here if desired */
+                     setPage({ ...page, fullStage:5, sScore: s.score });
+                   }}/>;
 
-          /* 5: adaptive flash-cards */
-          case 5:
+          case 5:                       /* Flash-cards per lesson (no pages) */
             return <LessonPractice
                      words={page.lessons[page.idx]}
-                     lessonNum={page.idx+1}
+                     lessonNum={page.idx + 1}
                      totalLessons={page.lessons.length}
-                     perPage={page.perPage}
                      onDone={()=>{
                        const next = page.idx + 1;
                        next < page.lessons.length
@@ -169,31 +157,33 @@ export default function App() {
                          : setPage({ ...page, fullStage:6 });
                      }}/>;
 
-          /* 6: meaning quiz then finish */
-          case 6:
-            return <QuizPage onDone={()=>setPage("menu")}/>;
+          case 6:                       /* Meaning quiz */
+            return <QuizPage onDone={()=>setPage("menu")}/>; 
 
           default:
             return null;
         }
       })()}
 
-      {/* stand-alone tutorial overlay ----------------------- */}
+      {/* -------- stand-alone tutorial overlay -------- */}
       {overlay && (
-        <TutorialModal task={overlay}
+        <TutorialModal
+          task={overlay}
           onClose={()=>setOverlay(null)}
-          onStart={()=>{ setOverlay(null); setPage(overlay); }}/>
+          onStart={()=>{ setOverlay(null); setPage(overlay); }}
+        />
       )}
     </div>
   );
 }
 
-/* ---------------- Menu ---------------- */
+/* ---------------- Menu component ---------------- */
 const btn =
   "rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow transition hover:bg-indigo-700";
 
 const Menu: React.FC<{
-  nStats: GameStats | null; pvtStats: PVTStats | null;
+  nStats:  GameStats | null;
+  pvtStats: PVTStats | null;
   onNBack: () => void; onPVT: () => void; onSlide: () => void;
   onVocab: () => void; onQuiz: () => void; onFull: () => void;
 }> = ({ nStats, pvtStats, onNBack, onPVT, onSlide, onVocab, onQuiz, onFull }) => (
@@ -212,7 +202,7 @@ const Menu: React.FC<{
       <Summary title="2-Back result">
         <p>Hits: {nStats.hits}</p><p>Missed: {nStats.missed}</p>
         <p>Attempts: {nStats.attempts}</p>
-        <p>Accuracy: {(nStats.accuracy*100).toFixed(1)}%</p>
+        <p>Accuracy: {(nStats.accuracy * 100).toFixed(1)}%</p>
       </Summary>
     )}
     {pvtStats && (
@@ -226,49 +216,33 @@ const Menu: React.FC<{
   </div>
 );
 
-const Summary: React.FC<React.PropsWithChildren<{title:string}>> = ({title, children}) => (
+const Summary: React.FC<React.PropsWithChildren<{ title: string }>> = ({ title, children }) => (
   <div className="mx-auto max-w-xs rounded-2xl bg-white/60 p-4 shadow space-y-1">
     <h2 className="text-lg font-bold text-indigo-700">{title}</h2>
     <div className="text-sm text-gray-700 space-y-1">{children}</div>
   </div>
 );
 
-/* ------------------------------------------------------------------ */
-/*  Tutorial modal (unchanged)                                        */
-/* ------------------------------------------------------------------ */
+/* ---------------- Tutorial modal (unchanged) ---------------- */
 interface TutProps {
   task: "nback" | "pvt";
   onClose: () => void;
   onStart: () => void;
 }
 
-const slides: Record<
-  "nback" | "pvt",
-  { title: string; body: string; emoji: string }[]
-> = {
+const slides: Record<"nback" | "pvt",
+  { title: string; body: string; emoji: string }[]> = {
   nback: [
-    {
-      title: "Match 2-Back",
-      emoji: "🔠",
-      body: "A letter appears every 1.5 s.\nPress <Space> when the current letter matches the one two steps before."
-    },
-    {
-      title: "Scoring",
-      emoji: "🎯",
-      body: "Hits = correct presses.\nMisses = no press on a match.\nStay focused!"
-    }
+    { title: "Match 2-Back", emoji:"🔠",
+      body:"A letter appears every 1.5 s.\nPress <Space> when the current letter matches the one two steps before."},
+    { title: "Scoring", emoji:"🎯",
+      body:"Hits = correct presses.\nMisses = no press on a match.\nStay focused!"}
   ],
   pvt: [
-    {
-      title: "React Fast!",
-      emoji: "🟢",
-      body: "Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can."
-    },
-    {
-      title: "Avoid False Starts",
-      emoji: "⛔",
-      body: "Pressing early resets the trial\nand counts as a false start."
-    }
+    { title: "React Fast!", emoji:"🟢",
+      body:"Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can."},
+    { title: "Avoid False Starts", emoji:"⛔",
+      body:"Pressing early resets the trial\nand counts as a false start."}
   ]
 };
 
@@ -280,33 +254,24 @@ const TutorialModal: React.FC<TutProps> = ({ task, onClose, onStart }) => {
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 backdrop-blur">
       <div className="relative w-full max-w-md space-y-6 rounded-3xl bg-white p-8 shadow-2xl">
-
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-xl font-bold text-gray-400 hover:text-gray-600">
-          ×
-        </button>
+        <button onClick={onClose}
+          className="absolute right-4 top-4 text-xl font-bold text-gray-400 hover:text-gray-600">×</button>
 
         <div className="text-center space-y-4">
           <div className="text-5xl">{f.emoji}</div>
           <h3 className="text-2xl font-bold text-indigo-700">{f.title}</h3>
-          {f.body.split("\n").map((line, k) => (
-            <p key={k} className="text-gray-700">{line}</p>
-          ))}
+          {f.body.split("\n").map((l,k)=><p key={k} className="text-gray-700">{l}</p>)}
         </div>
 
         <div className="flex justify-between pt-4">
-          <button
-            disabled={i === 0}
-            onClick={() => setI(v => v - 1)}
+          <button disabled={i===0}
+            onClick={()=>setI(v=>v-1)}
             className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40">
             Back
           </button>
-          {last ? (
-            <button onClick={onStart} className={btn}>Start</button>
-          ) : (
-            <button onClick={() => setI(v => v + 1)} className={btn}>Next</button>
-          )}
+          {last
+            ? <button onClick={onStart} className={btn}>Start</button>
+            : <button onClick={()=>setI(v=>v+1)} className={btn}>Next</button>}
         </div>
       </div>
     </div>

@@ -3,8 +3,15 @@
 /*  Each entry keeps the old keys (hanzi / pinyin) so the rest of     */
 /*  your codebase stays unchanged.                                    */
 /* ------------------------------------------------------------------ */
-
-const words = [
+export interface Word {
+  hanzi:  string;
+  pinyin: string;
+  en:     string;
+  pos?:   string;
+  example?: string;   // ← add optional fields here
+  note?:    string;
+}
+const words: Word[] = [
   { hanzi: "toki",    pinyin: "toki",     en: "hello / speak",      pos: "greeting / verb" },
   { hanzi: "pona",    pinyin: "pona",     en: "good",               pos: "adjective" },
   { hanzi: "ike",     pinyin: "ike",      en: "bad",                pos: "adjective" },
@@ -48,5 +55,4 @@ const words = [
   { hanzi: "oko",     pinyin: "oko",      en: "eye (alt word)",     pos: "noun" }
 ] as const;
 
-export type Word = (typeof words)[number];
 export default words;
