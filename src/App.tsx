@@ -23,7 +23,7 @@ const shuffle = <T,>(arr: ReadonlyArray<T>): T[] => {
 type VocabFlow = { lessons: Word[][]; idx: number };
 
 type FullFlow  = {
-  fullStage: number;           // see switch
+  fullStage: number;      // 0-6
   lessons: Word[][];
   idx: number;
   nScore?: number;
@@ -42,36 +42,45 @@ const WORDS_PER_LESSON = 12;
 
 /* =================================================================== */
 export default function App() {
-  const [page, setPage]       = useState<Page>("menu");
+  /* ---------- derive initial page from URL ---------- */
+  const buildLessons = () => {
+    const arr = shuffle(allWords);
+    const chunks: Word[][] = [];
+    for (let i = 0; i < arr.length; i += WORDS_PER_LESSON)
+      chunks.push(arr.slice(i, i + WORDS_PER_LESSON));
+    return chunks;
+  };
+
+  const initialPage: Page =
+    window.location.pathname === "/fulltest"
+      ? { fullStage: 0, lessons: buildLessons(), idx: 0 }
+      : "menu";
+
+  const [page, setPage]       = useState<Page>(initialPage);
   const [overlay, setOverlay] = useState<null | "nback" | "pvt">(null);
 
   const [nStats,  setNStats]  = useState<GameStats | null>(null);
   const [pvtStats,setPvtStats]= useState<PVTStats | null>(null);
 
-  /* ---------- Full-test bootstrap ---------- */
-  const startFull = () => {
-    const arr = shuffle(allWords);
-    const lessons: Word[][] = [];
-    for (let i = 0; i < arr.length; i += WORDS_PER_LESSON)
-      lessons.push(arr.slice(i, i + WORDS_PER_LESSON));
-    setPage({ fullStage: 0, lessons, idx: 0 });
-  };
+  /* ---------- menu button: start full ---------- */
+  const startFull = () =>
+    setPage({ fullStage: 0, lessons: buildLessons(), idx: 0 });
 
   /* ================= router ================= */
   return (
     <div className="min-h-screen p-8 flex flex-col items-center justify-center
                     bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100">
 
-      {/* -------- MENU -------- */}
+      {/* -------- MENU (only on "/") -------- */}
       {page === "menu" && (
         <Menu
           nStats={nStats} pvtStats={pvtStats}
           onNBack={()=>setOverlay("nback")}
-          onPVT={()=>setOverlay("pvt")}
+          onPVT  ={()=>setOverlay("pvt")}
           onSlide={()=>setPage("slideshow")}
           onVocab={()=>setPage("vocab-setup")}
-          onQuiz={()=>setPage("quiz")}
-          onFull={startFull}
+          onQuiz ={()=>setPage("quiz")}
+          onFull ={startFull}
         />
       )}
 
@@ -90,7 +99,8 @@ export default function App() {
       )}
 
       {page === "vocab-setup" && (
-        <LessonSetup onStart={(chunks: Word[][])=>setPage({ lessons:chunks, idx:0 })}/>
+        <LessonSetup onStart={(chunks: Word[][])=>
+          setPage({ lessons: chunks, idx: 0 })}/>
       )}
 
       {typeof page === "object" && "lessons" in page && "idx" in page && !("fullStage" in page) && (
@@ -108,44 +118,46 @@ export default function App() {
 
       {page === "quiz" && <QuizPage onDone={()=>setPage("menu")}/>}
 
-      {/* -------- FULL TEST FLOW -------- */}
+      {/* -------- FULL-TEST flow -------- */}
       {typeof page === "object" && "fullStage" in page && (() => {
         switch (page.fullStage) {
-          case 0:                       /* n-Back tutorial */
+          /* 0 ─ n-Back tutorial */
+          case 0:
             return <TutorialModal task="nback"
                      onClose={()=>setPage("menu")}
-                     onStart={()=>setPage({ ...page, fullStage:1 })} />;
+                     onStart={()=>setPage({ ...page, fullStage:1 })}/>;
 
-          case 1:                       /* n-Back game */
+          /* 1 ─ n-Back test */
+          case 1:
             return <NBackGame settings={NBACK_CFG}
                      onFinish={s=>{
-                       const nScore = s.accuracy * 100;
-                       setPage({ ...page, fullStage:2, nScore });
+                       setPage({ ...page, fullStage:2, nScore:s.accuracy*100 });
                      }}/>;
 
-          case 2:                       /* PVT tutorial */
+          /* 2 ─ PVT tutorial */
+          case 2:
             return <TutorialModal task="pvt"
                      onClose={()=>setPage("menu")}
-                     onStart={()=>setPage({ ...page, fullStage:3 })} />;
+                     onStart={()=>setPage({ ...page, fullStage:3 })}/>;
 
-          case 3:                       /* PVT game */
+          /* 3 ─ PVT test */
+          case 3:
             return <PVTTask onFinish={(s:PVTStats)=>{
-                     const mid  = Math.floor(s.rts.length/2);
-                     const avg  = (a:number[])=>a.reduce((t,v)=>t+v,0)/a.length;
-                     const delta= avg(s.rts.slice(mid)) - avg(s.rts.slice(0,mid));
-                     const vScore = Math.max(0, Math.min(100, 100 - delta/4));
+                     const half = Math.floor(s.rts.length/2);
+                     const avg  = (xs:number[])=>xs.reduce((t,v)=>t+v,0)/xs.length;
+                     const delta= avg(s.rts.slice(half)) - avg(s.rts.slice(0,half));
+                     const vScore = Math.max(0, Math.min(100, 100 - (delta/avg(s.rts))*200));
                      setPage({ ...page, fullStage:4, vScore });
                    }}/>;
 
-          case 4:                       /* Slide-show task */
+          /* 4 ─ slide-show attention */
+          case 4:
             return <SlideShowTask onFinish={s=>{
-                     const overall =
-                       ((page.nScore ?? 0) + (page.vScore ?? 0) + s.score) / 3;
-                     /* you could adapt WORDS_PER_LESSON here if desired */
-                     setPage({ ...page, fullStage:5, sScore: s.score });
+                     setPage({ ...page, fullStage:5, sScore:s.score });
                    }}/>;
 
-          case 5:                       /* Flash-cards per lesson (no pages) */
+          /* 5 ─ flash-cards lessons (no pagination) */
+          case 5:
             return <LessonPractice
                      words={page.lessons[page.idx]}
                      lessonNum={page.idx + 1}
@@ -157,15 +169,16 @@ export default function App() {
                          : setPage({ ...page, fullStage:6 });
                      }}/>;
 
-          case 6:                       /* Meaning quiz */
-            return <QuizPage onDone={()=>setPage("menu")}/>; 
+          /* 6 ─ meaning quiz */
+          case 6:
+            return <QuizPage onDone={()=>setPage("menu")}/>;
 
           default:
             return null;
         }
       })()}
 
-      {/* -------- stand-alone tutorial overlay -------- */}
+      {/* -------- stand-alone tutorials -------- */}
       {overlay && (
         <TutorialModal
           task={overlay}
@@ -177,13 +190,12 @@ export default function App() {
   );
 }
 
-/* ---------------- Menu component ---------------- */
+/* ---------------- Menu ---------------- */
 const btn =
   "rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow transition hover:bg-indigo-700";
 
 const Menu: React.FC<{
-  nStats:  GameStats | null;
-  pvtStats: PVTStats | null;
+  nStats: GameStats | null; pvtStats: PVTStats | null;
   onNBack: () => void; onPVT: () => void; onSlide: () => void;
   onVocab: () => void; onQuiz: () => void; onFull: () => void;
 }> = ({ nStats, pvtStats, onNBack, onPVT, onSlide, onVocab, onQuiz, onFull }) => (
@@ -200,9 +212,10 @@ const Menu: React.FC<{
 
     {nStats && (
       <Summary title="2-Back result">
-        <p>Hits: {nStats.hits}</p><p>Missed: {nStats.missed}</p>
+        <p>Hits: {nStats.hits}</p>
+        <p>Missed: {nStats.missed}</p>
         <p>Attempts: {nStats.attempts}</p>
-        <p>Accuracy: {(nStats.accuracy * 100).toFixed(1)}%</p>
+        <p>Accuracy: {(nStats.accuracy*100).toFixed(1)}%</p>
       </Summary>
     )}
     {pvtStats && (
@@ -216,7 +229,7 @@ const Menu: React.FC<{
   </div>
 );
 
-const Summary: React.FC<React.PropsWithChildren<{ title: string }>> = ({ title, children }) => (
+const Summary: React.FC<React.PropsWithChildren<{title:string}>> = ({ title, children }) => (
   <div className="mx-auto max-w-xs rounded-2xl bg-white/60 p-4 shadow space-y-1">
     <h2 className="text-lg font-bold text-indigo-700">{title}</h2>
     <div className="text-sm text-gray-700 space-y-1">{children}</div>
