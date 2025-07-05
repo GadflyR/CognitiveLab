@@ -50,9 +50,9 @@ export default function App() {
       chunks.push(arr.slice(i, i + WORDS_PER_LESSON));
     return chunks;
   };
-
-  const initialPage: Page =
-    window.location.pathname === "/fulltest"
+  
+  const isFullTestURL = /\/fulltest$/.test(window.location.pathname);
+  const initialPage: Page = isFullTestURL
       ? { fullStage: 0, lessons: buildLessons(), idx: 0 }
       : "menu";
 
