@@ -50,8 +50,9 @@ export default function App() {
       chunks.push(arr.slice(i, i + WORDS_PER_LESSON));
     return chunks;
   };
-  
-  const isFullTestURL = /\/fulltest$/.test(window.location.pathname);
+
+  const isFullTestURL = window.location.hash === "#fulltest" ||      // hash-mode
+  /\/fulltest$/.test(window.location.pathname);// path-mode
   const initialPage: Page = isFullTestURL
       ? { fullStage: 0, lessons: buildLessons(), idx: 0 }
       : "menu";
