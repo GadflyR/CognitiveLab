@@ -52,7 +52,6 @@ const words: Word[] = [
   { hanzi: "lili",    pinyin: "lili",     en: "small / little",     pos: "adjective" },
   { hanzi: "ante",    pinyin: "ante",     en: "other / different",  pos: "adjective" },
   { hanzi: "ala",     pinyin: "ala",      en: "no / none",          pos: "adverb / negation" },
-  { hanzi: "oko",     pinyin: "oko",      en: "eye (alt word)",     pos: "noun" }
 ] as const;
 
 export default words;
