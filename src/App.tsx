@@ -9,20 +9,28 @@ import { QuizPage }       from "./components/vocab/QuizPage";
 import { SlideShowTask }  from "./components/attention/SlideShowTask";
 import allWords, { Word } from "./data/words.cn";
 
-/* ------------ helpers ------------ */
+/* ───────── helpers ───────── */
 const shuffle = <T,>(arr: ReadonlyArray<T>): T[] => {
-  const out = [...arr] as T[];
-  for (let i = out.length - 1; i > 0; i--) {
+  const a = [...arr] as T[];
+  for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
+    [a[i], a[j]] = [a[j], a[i]];
   }
+  return a;
+};
+/* build lesson chunks of given size */
+const makeLessons = (chunk: number): Word[][] => {
+  const src = shuffle(allWords);
+  const out: Word[][] = [];
+  for (let i = 0; i < src.length; i += chunk) out.push(src.slice(i, i + chunk));
   return out;
 };
 
-/* ------------ routing types ------------ */
+/* ───────── routing types ───────── */
 type VocabFlow = { lessons: Word[][]; idx: number };
 
-type FullFlow  = {
+type FullFlow = {
+  mode: "adaptive" | "control";
   fullStage: number;      // 0-6
   lessons: Word[][];
   idx: number;
@@ -36,26 +44,25 @@ type Page =
   | VocabFlow
   | FullFlow;
 
-/* ------------ constants ------------ */
+/* ───────── constants ───────── */
 const NBACK_CFG: GameSettings = { n: 2, total: 30, paceMs: 1500, useAudio: false };
-const WORDS_PER_LESSON = 12;
+const ADAPT_LESSON = 12;
+const CTRL_LESSON  = 10;
 
-/* =================================================================== */
+/* ================================================================== */
 export default function App() {
-  /* ---------- derive initial page from URL ---------- */
-  const buildLessons = () => {
-    const arr = shuffle(allWords);
-    const chunks: Word[][] = [];
-    for (let i = 0; i < arr.length; i += WORDS_PER_LESSON)
-      chunks.push(arr.slice(i, i + WORDS_PER_LESSON));
-    return chunks;
-  };
+  /* ----- initial page from URL hash/path ----- */
+  const path = window.location.pathname;
+  const hash = window.location.hash;
 
-  const isFullTestURL = window.location.hash === "#fulltest" ||      // hash-mode
-  /\/fulltest$/.test(window.location.pathname);// path-mode
-  const initialPage: Page = isFullTestURL
-      ? { fullStage: 0, lessons: buildLessons(), idx: 0 }
-      : "menu";
+  const isFull   = hash === "#fulltest"        || /\/fulltest$/.test(path);
+  const isCtrl   = hash === "#fulltestcontrol" || /\/fulltestcontrol$/.test(path);
+
+  const initialPage: Page = isFull
+    ? { mode:"adaptive", fullStage:0, lessons:makeLessons(ADAPT_LESSON), idx:0 }
+    : isCtrl
+    ? { mode:"control",  fullStage:0, lessons:makeLessons(CTRL_LESSON),  idx:0 }
+    : "menu";
 
   const [page, setPage]       = useState<Page>(initialPage);
   const [overlay, setOverlay] = useState<null | "nback" | "pvt">(null);
@@ -63,16 +70,19 @@ export default function App() {
   const [nStats,  setNStats]  = useState<GameStats | null>(null);
   const [pvtStats,setPvtStats]= useState<PVTStats | null>(null);
 
-  /* ---------- menu button: start full ---------- */
-  const startFull = () =>
-    setPage({ fullStage: 0, lessons: buildLessons(), idx: 0 });
+  /* menu shortcuts */
+  const startFullAdaptive = () =>
+    setPage({ mode:"adaptive", fullStage:0, lessons:makeLessons(ADAPT_LESSON), idx:0 });
+
+  const startFullControl  = () =>
+    setPage({ mode:"control",  fullStage:0, lessons:makeLessons(CTRL_LESSON),  idx:0 });
 
   /* ================= router ================= */
   return (
     <div className="min-h-screen p-8 flex flex-col items-center justify-center
                     bg-gradient-to-br from-rose-50 via-indigo-50 to-sky-100">
 
-      {/* -------- MENU (only on "/") -------- */}
+      {/* ───────── MENU ───────── */}
       {page === "menu" && (
         <Menu
           nStats={nStats} pvtStats={pvtStats}
@@ -81,11 +91,12 @@ export default function App() {
           onSlide={()=>setPage("slideshow")}
           onVocab={()=>setPage("vocab-setup")}
           onQuiz ={()=>setPage("quiz")}
-          onFull ={startFull}
+          onFullAdaptive ={startFullAdaptive}
+          onFullControl  ={startFullControl}
         />
       )}
 
-      {/* -------- stand-alone tasks -------- */}
+      {/* ───────── stand-alone tasks ───────── */}
       {page === "nback" && (
         <NBackGame settings={NBACK_CFG}
           onFinish={s=>{ setNStats(s); setPage("menu"); }}/>
@@ -104,10 +115,10 @@ export default function App() {
           setPage({ lessons: chunks, idx: 0 })}/>
       )}
 
-      {typeof page === "object" && "lessons" in page && "idx" in page && !("fullStage" in page) && (
+      {typeof page==="object" && "lessons" in page && "idx" in page && !("fullStage" in page) && (
         <LessonPractice
           words={page.lessons[page.idx]}
-          lessonNum={page.idx + 1}
+          lessonNum={page.idx+1}
           totalLessons={page.lessons.length}
           onDone={()=>{
             const next = page.idx + 1;
@@ -119,30 +130,24 @@ export default function App() {
 
       {page === "quiz" && <QuizPage onDone={()=>setPage("menu")}/>}
 
-      {/* -------- FULL-TEST flow -------- */}
-      {typeof page === "object" && "fullStage" in page && (() => {
+      {/* ───────── FULL-TEST flow (adaptive & control) ───────── */}
+      {typeof page==="object" && "fullStage" in page && (() => {
         switch (page.fullStage) {
-          /* 0 ─ n-Back tutorial */
-          case 0:
+          case 0: /* n-Back tutorial */
             return <TutorialModal task="nback"
                      onClose={()=>setPage("menu")}
                      onStart={()=>setPage({ ...page, fullStage:1 })}/>;
 
-          /* 1 ─ n-Back test */
-          case 1:
+          case 1: /* n-Back test */
             return <NBackGame settings={NBACK_CFG}
-                     onFinish={s=>{
-                       setPage({ ...page, fullStage:2, nScore:s.accuracy*100 });
-                     }}/>;
+                     onFinish={s=> setPage({ ...page, fullStage:2, nScore:s.accuracy*100 }) }/>;
 
-          /* 2 ─ PVT tutorial */
-          case 2:
+          case 2: /* PVT tutorial */
             return <TutorialModal task="pvt"
                      onClose={()=>setPage("menu")}
-                     onStart={()=>setPage({ ...page, fullStage:3 })}/>;
+                     onStart={()=>setPage({ ...page, fullStage:3 })}/> ;
 
-          /* 3 ─ PVT test */
-          case 3:
+          case 3: /* PVT test */
             return <PVTTask onFinish={(s:PVTStats)=>{
                      const half = Math.floor(s.rts.length/2);
                      const avg  = (xs:number[])=>xs.reduce((t,v)=>t+v,0)/xs.length;
@@ -151,17 +156,15 @@ export default function App() {
                      setPage({ ...page, fullStage:4, vScore });
                    }}/>;
 
-          /* 4 ─ slide-show attention */
-          case 4:
+          case 4: /* slide-show attention */
             return <SlideShowTask onFinish={s=>{
                      setPage({ ...page, fullStage:5, sScore:s.score });
                    }}/>;
 
-          /* 5 ─ flash-cards lessons (no pagination) */
-          case 5:
+          case 5: /* vocab lessons (no pagination) */
             return <LessonPractice
                      words={page.lessons[page.idx]}
-                     lessonNum={page.idx + 1}
+                     lessonNum={page.idx+1}
                      totalLessons={page.lessons.length}
                      onDone={()=>{
                        const next = page.idx + 1;
@@ -170,16 +173,15 @@ export default function App() {
                          : setPage({ ...page, fullStage:6 });
                      }}/>;
 
-          /* 6 ─ meaning quiz */
-          case 6:
-            return <QuizPage onDone={()=>setPage("menu")}/>;
+          case 6: /* quiz */
+            return <QuizPage onDone={()=>setPage("menu")}/> ;
 
           default:
             return null;
         }
       })()}
 
-      {/* -------- stand-alone tutorials -------- */}
+      {/* ───────── stand-alone tutorials ───────── */}
       {overlay && (
         <TutorialModal
           task={overlay}
@@ -198,17 +200,20 @@ const btn =
 const Menu: React.FC<{
   nStats: GameStats | null; pvtStats: PVTStats | null;
   onNBack: () => void; onPVT: () => void; onSlide: () => void;
-  onVocab: () => void; onQuiz: () => void; onFull: () => void;
-}> = ({ nStats, pvtStats, onNBack, onPVT, onSlide, onVocab, onQuiz, onFull }) => (
+  onVocab: () => void; onQuiz: () => void;
+  onFullAdaptive: () => void; onFullControl: () => void;
+}> = ({ nStats, pvtStats, onNBack, onPVT, onSlide,
+        onVocab, onQuiz, onFullAdaptive, onFullControl }) => (
   <div className="space-y-8 text-center">
     <h1 className="text-4xl font-extrabold text-indigo-700">Cognitive Lab</h1>
     <div className="flex flex-col gap-4 max-w-xs mx-auto">
-      <button onClick={onNBack} className={btn}>Play 2-Back</button>
-      <button onClick={onPVT}  className={btn}>Vigilance Test</button>
-      <button onClick={onSlide} className={btn}>🖼️ Slide Attention</button>
-      <button onClick={onVocab} className={btn}>📚 Toki Pona Vocab</button>
-      <button onClick={onQuiz}  className={btn}>❓ Meaning Quiz</button>
-      <button onClick={onFull}  className={btn}>🧩 Full Test</button>
+      <button onClick={onNBack}          className={btn}>Play 2-Back</button>
+      <button onClick={onPVT}            className={btn}>Vigilance Test</button>
+      <button onClick={onSlide}          className={btn}>🖼️ Slide Attention</button>
+      <button onClick={onVocab}          className={btn}>📚 Toki Pona Vocab</button>
+      <button onClick={onQuiz}           className={btn}>❓ Meaning Quiz</button>
+      <button onClick={onFullAdaptive}   className={btn}>🧩 Full Test (adaptive)</button>
+      <button onClick={onFullControl}    className={btn}>🧩 Full Test (control)</button>
     </div>
 
     {nStats && (
@@ -237,46 +242,37 @@ const Summary: React.FC<React.PropsWithChildren<{title:string}>> = ({ title, chi
   </div>
 );
 
-/* ---------------- Tutorial modal (unchanged) ---------------- */
-interface TutProps {
-  task: "nback" | "pvt";
-  onClose: () => void;
-  onStart: () => void;
-}
+/* ───────── TutorialModal (unchanged) ───────── */
+interface TutProps { task:"nback"|"pvt"; onClose:()=>void; onStart:()=>void; }
 
-const slides: Record<"nback" | "pvt",
-  { title: string; body: string; emoji: string }[]> = {
-  nback: [
-    { title: "Match 2-Back", emoji:"🔠",
-      body:"A letter appears every 1.5 s.\nPress <Space> when the current letter matches the one two steps before."},
-    { title: "Scoring", emoji:"🎯",
-      body:"Hits = correct presses.\nMisses = no press on a match.\nStay focused!"}
+const slides: Record<"nback"|"pvt",
+  {title:string;body:string;emoji:string}[]> = {
+  nback:[
+    {title:"Match 2-Back",emoji:"🔠",
+     body:"A letter appears every 1.5 s.\nPress <Space> when it matches the one two steps before."},
+    {title:"Scoring",emoji:"🎯",
+     body:"Hits = correct presses.\nMisses = no press on a match.\nStay focused!"}
   ],
-  pvt: [
-    { title: "React Fast!", emoji:"🟢",
-      body:"Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can."},
-    { title: "Avoid False Starts", emoji:"⛔",
-      body:"Pressing early resets the trial\nand counts as a false start."}
+  pvt:[
+    {title:"React Fast!",emoji:"🟢",
+     body:"Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can."},
+    {title:"Avoid False Starts",emoji:"⛔",
+     body:"Pressing early resets the trial\nand counts as a false start."}
   ]
 };
 
 const TutorialModal: React.FC<TutProps> = ({ task, onClose, onStart }) => {
-  const [i, setI] = useState(0);
-  const f = slides[task][i];
-  const last = i === slides[task].length - 1;
-
+  const [i,setI]=useState(0); const f=slides[task][i]; const last=i===slides[task].length-1;
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 backdrop-blur">
       <div className="relative w-full max-w-md space-y-6 rounded-3xl bg-white p-8 shadow-2xl">
         <button onClick={onClose}
           className="absolute right-4 top-4 text-xl font-bold text-gray-400 hover:text-gray-600">×</button>
-
         <div className="text-center space-y-4">
           <div className="text-5xl">{f.emoji}</div>
           <h3 className="text-2xl font-bold text-indigo-700">{f.title}</h3>
           {f.body.split("\n").map((l,k)=><p key={k} className="text-gray-700">{l}</p>)}
         </div>
-
         <div className="flex justify-between pt-4">
           <button disabled={i===0}
             onClick={()=>setI(v=>v-1)}
