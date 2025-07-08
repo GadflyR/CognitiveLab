@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 /* ---------- slide data (longer bodies) ---------- */
 interface Slide { title: string; body: string; }
@@ -165,7 +165,7 @@ const fiveNumber = (arr: number[]) => {
 /* ---------- component ---------- */
 export interface SlideStats { times: number[]; score: number; }
 
-export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({ onFinish }) => {
+export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void; hideScore?: boolean; }> = ({ onFinish, hideScore }) => {
   const [idx, setIdx]   = useState(0);
   const [done, setDone] = useState<SlideStats | null>(null);
   const [showTut, setShowTut] = useState(true);
@@ -174,6 +174,10 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({
   const startRef = useRef(performance.now());
 
   const MIN_CLICK = 1000;                      // ms – too-rushed threshold
+
+  useEffect(() => {
+    if (hideScore && done) onFinish(done)
+  }, [done, hideScore, onFinish])
 
   /* ---------- advance / finish ---------- */
   const next = () => {
@@ -206,7 +210,7 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({
   };
 
   /* ---------- RESULT SCREEN ---------- */
-  if (done) {
+  if (done && !hideScore) {
     const stats = fiveNumber(done.times);
     return (
       <div className="flex flex-col items-center gap-8 max-w-2xl bg-white/80 p-10 rounded-3xl shadow-lg">
@@ -259,7 +263,7 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({
           <div className="text-5xl">🖼️</div>
           <h3 className="text-2xl font-bold text-indigo-700">Slide-Show Attention</h3>
           <p className="text-gray-700">
-            Read each slide carefully. Your score rewards <em>consistent time</em>{' '}
+            Read each slide carefully. Your score rewards <em>consistent focus</em>{' '}
             across slides and penalises rushed clicks.
           </p>
         </div>
@@ -287,10 +291,6 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void }> = ({
         className="rounded-full bg-indigo-600 px-8 py-3 font-semibold text-white shadow hover:bg-indigo-700">
         {idx + 1 < SLIDES.length ? "Next" : "Finish"}
       </button>
-
-      <p className="text-sm text-gray-500">
-        Slide {idx + 1} / {SLIDES.length}
-      </p>
 
       {showTut && <Tutorial />}
     </div>

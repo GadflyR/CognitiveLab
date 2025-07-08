@@ -6,10 +6,17 @@ import { GameSettings } from "./types";
 
 import { LessonSetup } from "./components/vocab/LessonSetup";
 import { LessonPractice } from "./components/vocab/LessonPractice";
-import { QuizPage } from "./components/vocab/QuizPage";
+import { QuizPage, QuizResult } from "./components/vocab/QuizPage";
 import { SlideShowTask } from "./components/attention/SlideShowTask";
 import allWords, { Word } from "./data/words.cn";
 
+function mapPerformanceToChunk(n: number, v: number, s: number) {
+  // average the three
+  const avg = (n + v + s) / 3
+  // linearly scale that into a word-per-page range, e.g. 8–20
+  const minWords = 8, maxWords = 20
+  return Math.round(minWords + (avg/100) * (maxWords - minWords))
+}
 /* ───────── helpers ───────── */
 const shuffle = <T,>(arr: ReadonlyArray<T>): T[] => {
   const a = [...arr] as T[];
@@ -32,7 +39,7 @@ const makeLessons = (chunk: number): Word[][] => {
 type VocabFlow = { lessons: Word[][]; idx: number };
 type FullFlow = {
   mode: "adaptive" | "control";
-  fullStage: number;
+  fullStage: number; // 0–6
   lessons: Word[][];
   idx: number;
   nScore?: number;
@@ -61,7 +68,7 @@ const CTRL_LESSON = 10;
 
 /* ================================================================== */
 export default function App() {
-  /* derive from URL hash/path */
+  /* derive initial page from hash/path */
   const path = window.location.pathname;
   const hash = window.location.hash;
   const isFull =
@@ -70,7 +77,7 @@ export default function App() {
     hash === "#fulltestcontrol" || /\/fulltestcontrol$/.test(path);
 
   const initialPage: Page = isFull
-    ? { mode: "adaptive", fullStage: 0, lessons: makeLessons(ADAPT_LESSON), idx: 0 }
+    ? { mode:"adaptive", fullStage:0, lessons:[], idx:0 }
     : isCtrl
     ? { mode: "control", fullStage: 0, lessons: makeLessons(CTRL_LESSON), idx: 0 }
     : "menu";
@@ -81,7 +88,7 @@ export default function App() {
   const [pvtStats, setPvtStats] = useState<PVTStats | null>(null);
 
   const startFullAdaptive = () =>
-    setPage({ mode: "adaptive", fullStage: 0, lessons: makeLessons(ADAPT_LESSON), idx: 0 });
+    setPage({ mode:"adaptive", fullStage:0, lessons:[], idx:0 });
   const startFullControl = () =>
     setPage({ mode: "control", fullStage: 0, lessons: makeLessons(CTRL_LESSON), idx: 0 });
 
@@ -137,12 +144,32 @@ export default function App() {
           />
         )}
         {page === "slideshow" && <SlideShowTask onFinish={() => setPage("menu")} />}
+
+        {/* ─── **NEW** vocab flow ─── */}
+        {typeof page === "object" &&
+         "lessons" in page &&
+         "idx" in page &&
+         !("fullStage" in page) && (
+          <LessonPractice
+            words={page.lessons[page.idx]}
+            lessonNum={page.idx + 1}
+            totalLessons={page.lessons.length}
+            onDone={() => {
+              const next = page.idx + 1;
+              next < page.lessons.length
+                ? setPage({ lessons: page.lessons, idx: next })
+                : setPage("menu");
+            }}
+          />
+        )}
+
         {page === "vocab-setup" && (
           <LessonSetup onStart={(chunks) => setPage({ lessons: chunks, idx: 0 })} />
         )}
+
         {page === "quiz" && <QuizPage onDone={() => setPage("menu")} />}
 
-        {/* ─── FULL FLOW ─── */}
+        {/* ─── FULL TEST flow ─── */}
         {isFullFlow &&
           (() => {
             switch (page.fullStage) {
@@ -174,11 +201,36 @@ export default function App() {
               case 3:
                 return (
                   <PVTTask
-                    onFinish={(s) => {
+                    onFinish={(s: PVTStats) => {
                       const half = Math.floor(s.rts.length / 2);
-                      const avg = (arr: number[]) => arr.reduce((t, v) => t + v, 0) / arr.length;
-                      const delta = avg(s.rts.slice(half)) - avg(s.rts.slice(0, half));
-                      const vScore = Math.max(0, Math.min(100, 100 - (delta / avg(s.rts)) * 200));
+                      const meanOf = (xs: number[]) => xs.reduce((t, v) => t + v, 0) / xs.length;
+                      const meanOverall = meanOf(s.rts);
+                      // 1) consistency score (0–100)
+                      const delta = meanOf(s.rts.slice(half)) - meanOf(s.rts.slice(0, half));
+                      const consistency = Math.max(
+                        0,
+                        Math.min(100, 100 - (delta / meanOverall) * 200)
+                      );
+                      // 2) speed score (0–100), assume 200 ms is floor, 500 ms is ceiling
+                      const speedScore = Math.max(
+                        0,
+                        Math.min(
+                          100,
+                          ((500 - meanOverall) / (500 - 200)) * 100
+                        )
+                      );
+                      // 3) false start penalty score (0–100)
+                      const falsePenalty = Math.max(
+                        0,
+                        100 - (s.falseStarts / s.trials) * 100
+                      );
+                      // composite: give consistency the most weight
+                      const vScore = Math.round(
+                        0.6 * consistency +
+                        0.3 * speedScore +
+                        0.1 * falsePenalty
+                      );
+              
                       setPage({ ...page, fullStage: 4, vScore });
                     }}
                   />
@@ -186,31 +238,86 @@ export default function App() {
               case 4:
                 return (
                   <SlideShowTask
-                    onFinish={(s) => setPage({ ...page, fullStage: 5, sScore: s.score })}
+                    hideScore      /* new flag to suppress its results page */
+                    onFinish={s => {
+                      const withSlide = { ...page, fullStage: 5, sScore: s.score };
+              
+                      if (page.mode === "adaptive") {
+                        // compute chunk from all three
+                        const chunk = mapPerformanceToChunk(
+                          page.nScore!,
+                          page.vScore!,
+                          s.score
+                        );
+                        // build your lessons now
+                        const lessons = makeLessons(chunk);
+                        setPage({ ...withSlide, lessons, idx: 0 });
+                      } else {
+                        // control group already has lessons
+                        setPage(withSlide);
+                      }
+                    }}
                   />
                 );
               case 5:
                 return (
                   <LessonPractice
                     words={page.lessons[page.idx]}
-                    lessonNum={page.idx + 1}
+                    lessonNum={page.idx+1}
                     totalLessons={page.lessons.length}
                     onDone={() => {
-                      const next = page.idx + 1;
-                      next < page.lessons.length
-                        ? setPage({ ...page, idx: next })
-                        : setPage({ ...page, fullStage: 6 });
+                      const next = page.idx + 1
+                      if (next < page.lessons.length) {
+                        setPage({ ...page, idx: next })
+                      } else {
+                        setPage({ ...page, fullStage:6 })
+                      }
+                    }}
+                  />
+                )
+              case 6:
+                return (
+                  <QuizPage
+                    onDone={(results: QuizResult[]) => {
+                      // assemble everything
+                      const numPages    = page.lessons.length;
+                      const wordsPerPage = page.lessons.map(p => p.length);
+                      const payload = {
+                        mode: page.mode,
+                        nBack: page.nScore,
+                        pvt: page.vScore,
+                        slide: page.sScore,
+                        vocab: {
+                          numPages,
+                          wordsPerPage
+                        },
+                        quiz: results,
+                      };
+
+                      // trigger download
+                      const blob = new Blob(
+                        [JSON.stringify(payload, null, 2)],
+                        { type: "application/json" }
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "cognitive_lab_results.json";
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+
+                      // (no need to navigate back to menu)
                     }}
                   />
                 );
-              case 6:
-                return <QuizPage onDone={() => setPage("menu")} />;
               default:
                 return null;
             }
           })()}
 
-        {/* ─── stand-alone tutorial overlay ─── */}
+        {/* ─── standalone tutorial overlay ─── */}
         {overlay && (
           <TutorialModal
             task={overlay}
@@ -252,7 +359,9 @@ const Menu: React.FC<{
   onFullControl,
 }) => (
   <div className="space-y-8 text-center">
-    <h1 className="text-4xl font-extrabold text-indigo-700">Cognitive Lab</h1>
+    <h1 className="text-4xl font-extrabold text-indigo-700">
+      Cognitive Lab
+    </h1>
     <div className="flex flex-col gap-4 max-w-xs mx-auto">
       <button onClick={onNBack} className={btn}>
         Play 2-Back
@@ -276,12 +385,15 @@ const Menu: React.FC<{
         🧩 Full Test (control)
       </button>
     </div>
+
     {nStats && (
       <Summary title="2-Back result">
         <p>Hits: {nStats.hits}</p>
         <p>Missed: {nStats.missed}</p>
         <p>Attempts: {nStats.attempts}</p>
-        <p>Accuracy: {(nStats.accuracy * 100).toFixed(1)}%</p>
+        <p>
+          Accuracy: {(nStats.accuracy * 100).toFixed(1)}%
+        </p>
       </Summary>
     )}
     {pvtStats && (
@@ -295,7 +407,10 @@ const Menu: React.FC<{
   </div>
 );
 
-const Summary: React.FC<React.PropsWithChildren<{ title: string }>> = ({ title, children }) => (
+const Summary: React.FC<React.PropsWithChildren<{ title: string }>> = ({
+  title,
+  children,
+}) => (
   <div className="mx-auto max-w-xs rounded-2xl bg-white/60 p-4 shadow space-y-1">
     <h2 className="text-lg font-bold text-indigo-700">{title}</h2>
     <div className="text-sm text-gray-700 space-y-1">{children}</div>
@@ -314,19 +429,19 @@ const slides: Record<"nback" | "pvt", { title: string; body: string; emoji: stri
     {
       title: "Match 2-Back",
       emoji: "🔠",
-      body: "A letter appears every 1.5 s.\nPress <Space> when it matches the one two steps before.",
+      body: "N-back is a widely recognized cognitive test for measuring working memory capacity.\nA letter appears on the screen every 1.5 s.\nPress <Space> when it matches the one two steps before.",
     },
     {
       title: "Scoring",
       emoji: "🎯",
-      body: "Hits = correct presses.\nMisses = no press on a match.\nStay focused!",
+      body: "Hits = correct presses.\nMisses = no press on a match.\nStay focused!\nHere is a short tutorial to get you familiar with the gameplay.",
     },
   ],
   pvt: [
     {
-      title: "React Fast!",
+      title: "2nd Game: React Fast!",
       emoji: "🟢",
-      body: "Wait until the green circle lights up,\nthen tap or hit <Space> as fast as you can.",
+      body: "This is a game measuring your vigilance.\nWait until the green circle lights up,\nthen tap or hit <Space> once as fast as you can.",
     },
     {
       title: "Avoid False Starts",

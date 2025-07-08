@@ -302,7 +302,7 @@ export const NBackGame: React.FC<NBackGameProps> = ({ settings, onFinish }) => {
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-3xl p-6 space-y-6">
           <h3 className="text-2xl font-extrabold text-indigo-700">Tutorial finished!</h3>
           <p className="text-center text-gray-700 max-w-xs">
-            In the real test the letters will appear <b>much faster&nbsp;(1.5&nbsp;s)</b> and the queue will{" "}
+            In the real test the letters will appear <b>much faster&nbsp;(1.5&nbsp;s)</b> and the queue of "previous numbers" will{" "}
             <b>disappear</b>.<br />
             Would you like to play the tutorial again or start the real test?
           </p>
