@@ -261,7 +261,7 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void; hideSc
 
         <div className="text-center space-y-4">
           <div className="text-5xl">🖼️</div>
-          <h3 className="text-2xl font-bold text-indigo-700">Slide-Show Attention</h3>
+          <h3 className="text-2xl font-bold text-indigo-700">3rd Game: Slide-Show Attention</h3>
           <p className="text-gray-700">
             Read each slide carefully. Your score rewards <em>consistent focus</em>{' '}
             across slides and penalises rushed clicks.

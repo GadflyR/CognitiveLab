@@ -427,7 +427,7 @@ interface TutProps {
 const slides: Record<"nback" | "pvt", { title: string; body: string; emoji: string }[]> = {
   nback: [
     {
-      title: "Match 2-Back",
+      title: "1st Game: Match 2-Back",
       emoji: "🔠",
       body: "N-back is a widely recognized cognitive test for measuring working memory capacity.\nA letter appears on the screen every 1.5 s.\nPress <Space> when it matches the one two steps before.",
     },
