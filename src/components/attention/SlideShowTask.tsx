@@ -188,24 +188,36 @@ export const SlideShowTask: React.FC<{ onFinish: (s: SlideStats) => void; hideSc
     if (idx + 1 < SLIDES.length) {
       setIdx(i => i + 1);
     } else {
-      const t   = timesRef.current;
-      const mid = Math.floor(t.length / 2);
-      const avg = (xs:number[]) => xs.reduce((s,v)=>s+v,0) / xs.length;
+      const times = timesRef.current;               // ms per-slide
 
-      const mean   = avg(t);
-      const delta  = avg(t.slice(mid)) - avg(t.slice(0, mid));
-      const rel    = delta / mean;                   // proportion slower
-      const consist= Math.max(0, Math.min(100, 100 - rel * 120)); // gentler
+      /* ---------- 1. detect “attention drop” ---------- */
+      const base   = times.slice(0, 3).reduce((s, v) => s + v, 0) / 3; // mean of first 3
+      const thresh = base * 0.6;                    // ≤ 60 % of baseline ⇒ lost focus
+      let dropIdx  = times.findIndex(ms => ms < thresh);
+      if (dropIdx === -1) dropIdx = times.length;   // sustained to the end
 
-      const factor =
-        mean >= 2000 ? 1 :
-        mean <= 1000 ? 0.2 :
-        0.2 + 0.8 * ((mean - 1000) / 1000);
+      const sustainedProp = dropIdx / times.length; // 0‥1
 
-      const penalty = t.some(ms => ms < MIN_CLICK) ? 0.5 : 1;
-      const score   = Math.round(consist * factor * penalty);
+      /* ---------- 2. intra-slide consistency ---------- */
+      const sustained   = times.slice(0, dropIdx);
+      const μ           = sustained.reduce((s, v) => s + v, 0) / sustained.length || 1;
+      const σ           = Math.sqrt(sustained.reduce((s, v) => s + (v - μ) ** 2, 0) / sustained.length);
+      const cv          = σ / μ;                    // coefficient of variation  (0 = perfect)
+      const consistency = Math.max(0, 1 - cv);      // map 0-∞  →  1-0
 
-      setDone({ times: t, score });
+      /* ---------- 3. spam / speed penalty ---------- */
+      const tooFastCt = times.filter(ms => ms < MIN_CLICK).length;
+      const spamPen   = tooFastCt / times.length > 0.3 ? 0.2                      // lots of spam
+                      : tooFastCt ? 0.5 : 1;                                      // few spams
+
+      /* ---------- 4. final score ----------
+        - 70 % weight on sustained attention
+        - 30 % on consistency
+        - spamPen applies last                                                */
+      const raw = sustainedProp * 0.7 + consistency * 0.3;
+      const score = Math.round(raw * 100 * spamPen); // 0-100
+
+      setDone({ times, score });
     }
   };
 
